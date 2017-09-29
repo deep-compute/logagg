@@ -72,7 +72,7 @@ class LogForwarder(BaseScript):
 
     def read_from_q(self):
         msgs = []
-	last_push_ts = time.time()
+        last_push_ts = time.time()
 
         while True:
             try:
