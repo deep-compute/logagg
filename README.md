@@ -1,7 +1,7 @@
 # logagg
 logs aggregation framework
 
-Collect all the logs from server and parses it by making common schema for all the logs and stores at given storage engine.
+Collect all the logs from the server and parses it by making a common schema for all the logs and stores at given storage engine.
 
 ## Installation
 > Prerequisites: Python2.7
@@ -25,10 +25,10 @@ nsqadmin -lookupd-http-address localhost:4161
 
 ### Types of handlers we support
 - nginx_access
-- django
-- mongodb
-- elasticsearch
-- basescript
+- Django
+- MongoDB
+- Elasticsearch
+- Basescript
 
 ### Help command
 - For `logagg`
@@ -51,7 +51,7 @@ optional arguments:
   --log-format {json,pretty}
                         Force the format of the logs. By default, if the
                         command is from a terminal, print colorful logs.
-                        Otherwise print json.
+                        Otherwise, print json.
   --log-file LOG_FILE   Writes logs to log file if specified, default: None
   --quiet               if true, does not print logs to stderr, default: False
 
@@ -73,7 +73,7 @@ usage: logagg collect [-h] [--nsqd-http-address NSQD_HTTP_ADDRESS]
                       file [file ...] nsqtopic
 
 positional arguments:
-  file                  Provide absolute path of logfile including module name
+  file                  Provide absolute path of log file including the module name
                         and function name, eg: /var/log/nginx/access.log:logag
                         g.collect.handlers.nginx_access
   nsqtopic              Topic name to publish messages. Ex: logs_and_metrics
@@ -81,7 +81,7 @@ positional arguments:
 optional arguments:
   -h, --help            show this help message and exit
   --nsqd-http-address NSQD_HTTP_ADDRESS
-                        nsqd http address where we send the messages
+                        nsqd HTTP address where we send the messages
 ```
 
 - For `logagg forward`,
@@ -104,17 +104,17 @@ optional arguments:
   --nsqtopic NSQTOPIC   NSQ topic name to read messages from. Ex:
                         logs_and_metrics
   --nsqchannel NSQCHANNEL
-                        channel of nsqd
+                        the channel of nsqd
   --nsqd-tcp-address NSQD_TCP_ADDRESS
-                        nsqd tcp address where we get the messages
+                        nsqd TCP address where we get the messages
   --mongodb-server-url MONGODB_SERVER_URL
                         DNS of the server where mongo is running
   --mongodb-port MONGODB_PORT
                         port where mongo is running
   --mongodb-user-name MONGODB_USER_NAME
-                        username of mongodb
+                        username of MongoDB
   --mongodb-password MONGODB_PASSWORD
-                        password to authenticate mongodb
+                        password to authenticate MongoDB
   --mongodb-database MONGODB_DATABASE
                         database to store logs
   --mongodb-collection MONGODB_COLLECTION
