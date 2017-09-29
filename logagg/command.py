@@ -35,7 +35,7 @@ class LogaggCommand(BaseScript):
         collect_cmd.add_argument('--nsqd-http-address',
             default='localhost:4151', help='nsqd http address where we send the messages')
 
-        forward_cmd = subcommands.add_parser('forward', help='Collects all the messages from nsq and pushes to MongoDB')
+        forward_cmd = subcommands.add_parser('forward', help='Collects all the messages from nsq and pushes to storage engine')
         forward_cmd.set_defaults(func=self.forward)
         forward_cmd.add_argument('--nsqtopic', help='NSQ topic name to read messages from. Ex: logs_and_metrics')
         forward_cmd.add_argument('--nsqchannel', help='channel of nsqd')
