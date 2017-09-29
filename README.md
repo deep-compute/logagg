@@ -30,7 +30,7 @@ nsqadmin -lookupd-http-address localhost:4161
 - elasticsearch
 - basescript
 
-### Getting help per command
+### Help command
 - For `logagg`
 ```bash
 logagg --help
@@ -122,9 +122,9 @@ optional arguments:
 
 ```
 
-### Run the `collector` 
+### How to run log collector?
 
-- Run the collector by using command:
+- Run log collector by using command:
 ```bash
 logagg collect /path/to/input/log_file:logagg.collect.handlers.<handler_name> <topic name> --nsqd-http-address <nsqd http address>
 ```
@@ -134,8 +134,9 @@ logagg collect /path/to/input/log_file:logagg.collect.handlers.<handler_name> <t
 logagg collect /var/log/nginx/access.log:logagg.collect.handlers.nginx_access nginx --nsqd-http-address localhost:4151  
 ```
 
-### Run the `forwarder`
-- Run the forwarder by using command:
+### How to run log forwarder?
+
+- Run log forwarder by using command:
 ```bash
 logagg forward --nsqtopic <topic name> --nsqchannel <channel name> --nsqd-tcp-address <nsqd tcp address> --mongodb-user-name <username> --mongodb-password <password> --mongodb-server-url <server host> --mongodb-port <port num> --mongodb-database <database name> --mongodb-collection <collection name>
 ```
@@ -151,7 +152,7 @@ logagg forward --nsqtopic nginx --nsqchannel test --nsqd-tcp-address localhost:4
 localhost:4171
 ```
 
-### How to check the records at forwarder end.
+### How to check the records at forwarder end with a storage engine.
 - Initially, we are sending logs to MongoDB. Further, we can support to send the logs to different storage engines.
 
 - Connect to the mongo shell and perform queries:
