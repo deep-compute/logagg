@@ -20,7 +20,6 @@ log_format  json  '{'
 
 - Modify the line: `access_log /var/log/nginx/access.log;` to `access_log /var/log/nginx/access.log json;`
 
-
 - To test nginx config file
 ```bash 
 nginx -t
@@ -38,7 +37,6 @@ nginx: configuration file /etc/nginx/nginx.conf test is successful
 /etc/init.d/nginx restart
 ```
 
-
 ### Install the `logagg` package from
 ```bash
 https://github.com/deep-compute/logagg.git
@@ -48,7 +46,7 @@ sudo python setup.py install
 
 ### Usage
 
-- After installation the logagg module, We can perform opertions in python shell.
+- After installation the logagg module, We can perform operations in the python shell.
 
 
 ```python
