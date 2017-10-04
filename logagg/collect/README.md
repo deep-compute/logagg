@@ -37,16 +37,16 @@ nginx: configuration file /etc/nginx/nginx.conf test is successful
 /etc/init.d/nginx restart
 ```
 
-### Install the `logagg` package from
+### Install the `logagg` package by running commands,
 ```bash
-https://github.com/deep-compute/logagg.git
+git clone "https://github.com/deep-compute/logagg.git"
 cd logagg
 sudo python setup.py install
 ```
 
 ### Usage
 
-- After installation the logagg module, We can perform operations in the python shell.
+- After installation of the logagg module, we can perform operations in the python shell.
 
 
 ```python

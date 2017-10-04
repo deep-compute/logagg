@@ -5,6 +5,7 @@ Collect all the logs from the server and parses it by making a common schema for
 
 ## Installation
 > Prerequisites: Python2.7
+
 > Note: tested and it works in python2.7 and not tested in other versions.
 
 - Install the `logagg` package by running commands,
@@ -122,9 +123,9 @@ optional arguments:
 
 ```
 
-### How to run log collector?
+### How to run the collector?
 
-- Run log collector by using command:
+- Run `collector` by using command:
 ```bash
 logagg collect /path/to/input/log_file:logagg.collect.handlers.<handler_name> <topic name> --nsqd-http-address <nsqd http address>
 ```
@@ -134,9 +135,9 @@ logagg collect /path/to/input/log_file:logagg.collect.handlers.<handler_name> <t
 logagg collect /var/log/nginx/access.log:logagg.collect.handlers.nginx_access nginx --nsqd-http-address localhost:4151  
 ```
 
-### How to run log forwarder?
+### How to run the forwarder?
 
-- Run log forwarder by using command:
+- Run `forwarder` by using command:
 ```bash
 logagg forward --nsqtopic <topic name> --nsqchannel <channel name> --nsqd-tcp-address <nsqd tcp address> --mongodb-user-name <username> --mongodb-password <password> --mongodb-server-url <server host> --mongodb-port <port num> --mongodb-database <database name> --mongodb-collection <collection name>
 ```
