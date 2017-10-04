@@ -161,11 +161,11 @@ class LogCollector(BaseScript):
             except (ImportError, AttributeError):
                 sys.exit(-1)
 
+            fpaths = glob.glob(fpattern)
             # TODO: We need to poll for fpattern if file was not available
-            if not os.path.isfile(fpattern):
+            if not fpaths:
                 raise IOError('file doesnot exist %s' % (fpattern))
 
-            fpaths = glob.glob(fpattern)
             for fpath in fpaths:
                 log_f = dict(fpath=fpath, fpattern=fpattern, handler=handler, handler_fn=handler_fn)
                 log_files.append(log_f)
