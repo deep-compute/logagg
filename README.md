@@ -8,6 +8,14 @@ Collect all the logs from the server and parses it by making a common schema for
 
 > Note: tested and it works in python2.7 and not tested in other versions.
 
+- Install the `nsq` package by running commands,
+```bash
+sudo apt-get install libsnappy-dev
+wget https://s3.amazonaws.com/bitly-downloads/nsq/nsq-1.0.0-compat.linux-amd64.go1.8.tar.gz
+tar zxvf nsq-1.0.0-compat.linux-amd64.go1.8.tar.gz
+sudo cp nsq-1.0.0-compat.linux-amd64.go1.8/bin/{nsqd,nsqlookupd,nsqadmin} /usr/local/bin
+```
+
 - Install the `logagg` package by running commands,
 ```bash
 git clone "https://github.com/deep-compute/logagg.git"
