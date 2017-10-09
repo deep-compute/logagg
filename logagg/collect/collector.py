@@ -17,6 +17,7 @@ from basescript import BaseScript
 
 HOST = socket.gethostname()
 MPUB_URL = 'http://%s/mpub?topic=%s'
+STATS_URL = 'http://%s/stats?format=json&topic=%s'
 
 # TODO
 '''
@@ -105,18 +106,13 @@ class LogCollector(BaseScript):
         data = json.loads(data.content)
         if 'health' in data:
             topics = data.get('topics')
-            for record in topics:
-                topic_name = record['topic_name']
-                if self.nsqtopic in topic_name:
-                    get_depth_count = record.get('depth')
-                    return get_depth_count
         else:
             topics = data.get('data').get('topics')
-            for record in topics:
-                topic_name = record['topic_name']
-                if self.nsqtopic in topic_name:
-                    get_depth_count = record.get('depth')
-                    return get_depth_count
+        for record in topics:
+            topic_name = record['topic_name']
+            if self.nsqtopic in topic_name:
+                get_depth_count = record.get('depth')
+                return get_depth_count
 
     def send_to_nsq(self):
         msgs = []
