@@ -99,6 +99,25 @@ class LogCollector(BaseScript):
         assert isinstance(log['handler'], str)
         assert isinstance(log['raw'], str)
 
+    def check_depth_at_nsq(self):
+        url = STATS_URL % (self.nsqd_http_address, self.nsqtopic)
+        data = self.session.get(url)
+        data = json.loads(data.content)
+        if 'health' in data:
+            topics = data.get('topics')
+            for record in topics:
+                topic_name = record['topic_name']
+                if self.nsqtopic in topic_name:
+                    get_depth_count = record.get('depth')
+                    return get_depth_count
+        else:
+            topics = data.get('data').get('topics')
+            for record in topics:
+                topic_name = record['topic_name']
+                if self.nsqtopic in topic_name:
+                    get_depth_count = record.get('depth')
+                    return get_depth_count
+
     def send_to_nsq(self):
         msgs = []
         last_push_ts = time.time()
@@ -127,18 +146,24 @@ class LogCollector(BaseScript):
 
             try:
                 if should_push:
-                    try:
-                        self.session.post(url, data='\n'.join(json.dumps(x['log']) for x in msgs)) # TODO What if session expires?
-                        self.log.info('sent logs to nsq, num sent = %d' % (len(msgs)))
-                        self.confirm_success(msgs)
+                    while 1:
+                        has_nsq_depth_limit_reached = self.check_depth_at_nsq() > 100
+                        if not has_nsq_depth_limit_reached:
+                            try:
+                                self.session.post(url, data='\n'.join(json.dumps(x['log']) for x in msgs)) # TODO What if session expires?
+                                self.log.info('sent logs to nsq, num sent = %d' % (len(msgs)))
+                                self.confirm_success(msgs)
 
-                        msgs = []
-                        last_push_ts = time.time()
-                    except (SystemExit, KeyboardInterrupt): raise
-                    except:
-                        self.log.exception('During sending to nsq. Will retry ...')
-                        time.sleep(self.SLEEP_TIME)
-                        continue
+                                msgs = []
+                                last_push_ts = time.time()
+                            except (SystemExit, KeyboardInterrupt): raise
+                            except:
+                                self.log.exception('During sending to nsq. Will retry ...')
+                                time.sleep(self.SLEEP_TIME)
+                                continue
+                            break
+                        else:
+                            time.sleep(self.SLEEP_TIME)
 
             except (SystemExit, KeyboardInterrupt): raise
             finally:
