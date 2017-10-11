@@ -18,7 +18,7 @@ class LogForwarder(BaseScript):
     SLEEP_TIME = 1
     QUEUE_TIMEOUT = 1
     MAX_SECONDS_TO_PUSH = 1
-    MAX_MESSAGES_TO_PUSH = 1000
+    MAX_MESSAGES_TO_PUSH = 200
 
     def __init__(self, log, args, nsqtopic, nsqchannel, nsqd_tcp_address, mongodb_server_url,\
             mongodb_port, mongodb_user_name, mongodb_password, mongodb_database, mongodb_collection):
@@ -41,12 +41,16 @@ class LogForwarder(BaseScript):
         url = 'mongodb://%s:%s@%s:%s' % (self.mongodb_user_name, self.mongodb_password,
                 self.mongodb_server_url, self.mongodb_port)
         client = MongoClient(url, serverSelectionTimeoutMS=self.SERVER_SELECTION_TIMEOUT)
+        self.log.info('Established connecton to MongoDB server: %s' % (self.mongodb_server_url))
         self.mongo_database = client[self.mongodb_database]
+        self.log.info('Created database: %s at MongoDB' % (self.mongo_database))
         self.mongo_coll = self.mongo_database[self.mongodb_collection]
+        self.log.info('Created collection: %s for MongoDB database %s' % (self.mongo_coll, self.mongo_database))
 
         # Initialize a queue to carry messages between the
         # producer (nsq_reader) and the consumer (read_from_q)
         self.msgqueue = Queue.Queue(maxsize=self.QUEUE_MAX_SIZE)
+        self.log.info('Created Queue object with max size of %d' % (QUEUE_MAX_SIZE))
 
         # Starts the thread which we get the messages from queue
         th = self.consumer_thread = Thread(target=self.read_from_q)
@@ -55,6 +59,7 @@ class LogForwarder(BaseScript):
 
         # Establish connection to nsq from where we get the logs
         # Since, it is a blocking call we are starting the reader here.
+        self.log.info('Starting nsq reader')
         self.reader = Reader(self.args.nsqtopic, self.args.nsqchannel, nsqd_tcp_addresses=[self.args.nsqd_tcp_address])
         self.handle_msg(self.reader)
 
@@ -87,8 +92,10 @@ class LogForwarder(BaseScript):
 
             try:
                 if should_push:
+                    self.log.info('Writing messages to MongoDB')
                     self._write_messages(msgs)
                     self._ack_messages(msgs)
+                    self.log.info('Ack to nsq is done for %d msgs' % (len(msgs)))
 
                     msgs = []
                     last_push_ts = time.time()
@@ -101,7 +108,6 @@ class LogForwarder(BaseScript):
         for msg in msgs:
             try:
                 msg.fin()
-                self.log.info('msg ack finished')
             except (SystemExit, KeyboardInterrupt): raise
             except:
                 self.log.exception('msg ack failed')
@@ -115,6 +121,6 @@ class LogForwarder(BaseScript):
             msgs_list.append(msg_body)
         try:
             self.mongo_coll.insert_many([msg for msg in msgs_list], ordered=False)
-            self.log.info("inserted the msgs into mongodb %d" % (len(msgs)))
+            self.log.info("inserted %d msgs into mongodb" % (len(msgs)))
         except pymongo.errors.BulkWriteError as bwe:
             self.log.exception('Write to mongo failed. Details: %s' % bwe.details)
