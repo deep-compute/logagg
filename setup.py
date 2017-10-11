@@ -17,7 +17,7 @@ setup(
     install_requires=[
         "basescript",
         "pymongo",
-        "pynsq",
+        "nsq-py",
         "pygtail==0.6.1",
     ],
     package_dir={'logagg': 'logagg'},
