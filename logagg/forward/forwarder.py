@@ -3,22 +3,22 @@ import time
 import Queue
 from threading import Thread
 
-import nsq
 import pymongo
 from pymongo import MongoClient
+from nsq.reader import Reader
 from basescript import BaseScript
 
 class LogForwarder(BaseScript):
     DESC = "Gets all the logs from nsq and stores in the storage engines"
 
     MAX_IN_FLIGHT = 100 # Number of messages to read from NSQ per shot
-    QUEUE_MAX_SIZE = 2000
+    QUEUE_MAX_SIZE = 5000
     SERVER_SELECTION_TIMEOUT = 500 # MongoDB server selection timeout
 
     SLEEP_TIME = 1
     QUEUE_TIMEOUT = 1
-    MAX_SECONDS_TO_PUSH = 2
-    MAX_MESSAGES_TO_PUSH = 100
+    MAX_SECONDS_TO_PUSH = 1
+    MAX_MESSAGES_TO_PUSH = 1000
 
     def __init__(self, log, args, nsqtopic, nsqchannel, nsqd_tcp_address, mongodb_server_url,\
             mongodb_port, mongodb_user_name, mongodb_password, mongodb_database, mongodb_collection):
@@ -48,27 +48,21 @@ class LogForwarder(BaseScript):
         # producer (nsq_reader) and the consumer (read_from_q)
         self.msgqueue = Queue.Queue(maxsize=self.QUEUE_MAX_SIZE)
 
-        # Establish connection to nsq from where we get the logs
-        self.nsq_reader = nsq.Reader(
-            topic=self.nsqtopic,
-            channel=self.nsqchannel,
-            nsqd_tcp_addresses=self.nsqd_tcp_address
-        )
-        self.nsq_reader.set_message_handler(self.handle_msg)
-        self.nsq_reader.set_max_in_flight(self.MAX_IN_FLIGHT)
-
+        # Starts the thread which we get the messages from queue
         th = self.consumer_thread = Thread(target=self.read_from_q)
         th.daemon = True
         th.start()
 
-        nsq.run()
+        # Establish connection to nsq from where we get the logs
+        # Since, it is a blocking call we are starting the reader here.
+        self.reader = Reader(self.args.nsqtopic, self.args.nsqchannel, nsqd_tcp_addresses=[self.args.nsqd_tcp_address])
+        self.handle_msg(self.reader)
 
         th.join()
-        self.nsq_reader.close()
 
-    def handle_msg(self, msg):
-        msg.enable_async()
-        self.msgqueue.put(msg)
+    def handle_msg(self, msg_reader):
+        for msg in msg_reader:
+            self.msgqueue.put(msg)
 
     def read_from_q(self):
         msgs = []
@@ -106,7 +100,7 @@ class LogForwarder(BaseScript):
     def _ack_messages(self, msgs):
         for msg in msgs:
             try:
-                msg.finish()
+                msg.fin()
                 self.log.info('msg ack finished')
             except (SystemExit, KeyboardInterrupt): raise
             except:
