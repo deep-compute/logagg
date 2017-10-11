@@ -17,7 +17,7 @@ class LogForwarder(BaseScript):
 
     SLEEP_TIME = 1
     QUEUE_TIMEOUT = 1
-    MAX_SECONDS_TO_PUSH = 5
+    MAX_SECONDS_TO_PUSH = 1
     MAX_MESSAGES_TO_PUSH = 1000
 
     def __init__(self, log, args, nsqtopic, nsqchannel, nsqd_tcp_address, mongodb_server_url,\
