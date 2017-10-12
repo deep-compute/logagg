@@ -92,7 +92,7 @@ class LogForwarder(BaseScript):
 
             try:
                 if should_push:
-                    self.log.info('Writing messages to MongoDB')
+                    self.log.info('Writing %d messages to MongoDB' % (len(msgs)))
                     self._write_messages(msgs)
                     self._ack_messages(msgs)
                     self.log.info('Ack to nsq is done for %d msgs' % (len(msgs)))

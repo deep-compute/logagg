@@ -31,13 +31,13 @@ class LogCollector(BaseScript):
     QUEUE_MAX_SIZE = 2000
     MAX_MSGS_TO_PUSH = 100
     MAX_SECONDS_TO_PUSH = 1
-    DEPTH_LIMIT_AT_NSQ = 10000000
+    DEPTH_LIMIT_AT_NSQ = 10000000 #10 Million #TODO: make it as command line argument
 
     TIME_WAIT = 0.25
     SLEEP_TIME = 1
     QUEUE_TIMEOUT = 1
-    PYGTAIL_WAIT_TIME = 0.05
-    WAIT_TIME_TO_CHECK_DEPTH = 5
+    PYGTAIL_ACK_WAIT_TIME = 0.05
+    WAIT_TIME_TO_CHECK_DEPTH_AT_NSQ = 5
 
     def __init__(self, log, args, _file, nsqtopic, nsqd_http_address):
         self.log = log
@@ -83,7 +83,7 @@ class LogCollector(BaseScript):
             self.queue.put(dict(log=log, freader=freader, line_info=line_info))
 
         while not freader.is_fully_acknowledged():
-            time.sleep(self.PYGTAIL_WAIT_TIME)
+            time.sleep(self.PYGTAIL_ACK_WAIT_TIME)
 
     def collect_log_lines(self, log_file):
         while 1:
@@ -124,7 +124,7 @@ class LogCollector(BaseScript):
             except:
                 pass
             finally:
-                time.sleep(self.WAIT_TIME_TO_CHECK_DEPTH)
+                time.sleep(self.WAIT_TIME_TO_CHECK_DEPTH_AT_NSQ)
 
     def send_to_nsq(self):
         self.log.info('Entered the send_to_nsq function')
@@ -171,7 +171,8 @@ class LogCollector(BaseScript):
                                 continue
                             break
                         else:
-                            time.sleep(self.WAIT_TIME_TO_CHECK_DEPTH)
+                            self.log.info('nsq depth limit exceeded, waiting for %d secs' % (self.WAIT_TIME_TO_CHECK_DEPTH_AT_NSQ))
+                            time.sleep(self.WAIT_TIME_TO_CHECK_DEPTH_AT_NSQ)
 
             except (SystemExit, KeyboardInterrupt): raise
             finally:
