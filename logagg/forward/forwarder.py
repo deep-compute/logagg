@@ -50,7 +50,7 @@ class LogForwarder(BaseScript):
         # Initialize a queue to carry messages between the
         # producer (nsq_reader) and the consumer (read_from_q)
         self.msgqueue = Queue.Queue(maxsize=self.QUEUE_MAX_SIZE)
-        self.log.info('Created Queue object with max size of %d' % (QUEUE_MAX_SIZE))
+        self.log.info('Created Queue object with max size of %d' % (self.QUEUE_MAX_SIZE))
 
         # Starts the thread which we get the messages from queue
         th = self.consumer_thread = Thread(target=self.read_from_q)
