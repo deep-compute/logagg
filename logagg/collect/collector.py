@@ -30,11 +30,14 @@ class LogCollector(BaseScript):
 
     QUEUE_MAX_SIZE = 2000
     MAX_MSGS_TO_PUSH = 100
-    MAX_SECONDS_TO_PUSH = 2
+    MAX_SECONDS_TO_PUSH = 1
+    DEPTH_LIMIT_AT_NSQ = 10000000 #10 Million #TODO: make it as command line argument
 
     TIME_WAIT = 0.25
     SLEEP_TIME = 1
     QUEUE_TIMEOUT = 1
+    PYGTAIL_ACK_WAIT_TIME = 0.05
+    WAIT_TIME_TO_CHECK_DEPTH_AT_NSQ = 5
 
     def __init__(self, log, args, _file, nsqtopic, nsqd_http_address):
         self.log = log
@@ -44,14 +47,16 @@ class LogCollector(BaseScript):
         self.nsqd_http_address = nsqd_http_address
 
     def _load_handler_fn(self, imp):
+        self.log.info('Entered the _load_handler_fn')
         module_name, fn_name = imp.split('.', 1)
         module = __import__(module_name)
         fn = operator.attrgetter(fn_name)(module)
+        self.log.info('Loaded the function for %s-%s' % (module_name, fn_name))
         return fn
 
     def _collect_log_lines(self, log_file):
         L = log_file
-
+        self.log.info('Starting to read log lines from the file %s' % (L['fpath']))
         freader = Pygtail(L['fpath'])
         for line_info in freader:
             _id = uuid.uuid1().hex
@@ -78,7 +83,7 @@ class LogCollector(BaseScript):
             self.queue.put(dict(log=log, freader=freader, line_info=line_info))
 
         while not freader.is_fully_acknowledged():
-            time.sleep(0.05)
+            time.sleep(self.PYGTAIL_ACK_WAIT_TIME)
 
     def collect_log_lines(self, log_file):
         while 1:
@@ -102,23 +107,30 @@ class LogCollector(BaseScript):
 
     def check_depth_at_nsq(self):
         url = STATS_URL % (self.nsqd_http_address, self.nsqtopic)
-        data = self.session.get(url)
-        data = json.loads(data.content)
-        if 'health' in data:
-            topics = data.get('topics')
-        else:
-            topics = data.get('data').get('topics')
-        for record in topics:
-            topic_name = record['topic_name']
-            if self.nsqtopic in topic_name:
-                get_depth_count = record.get('depth')
-                return get_depth_count
+        while 1:
+            try:
+                data = self.session.get(url)
+                data = json.loads(data.content)
+                topics = data.get('topics', []) or data.get('data', {}).get('topics', [])
+                for record in topics:
+                    topic_name = record['topic_name']
+                    if self.nsqtopic == topic_name:
+                        depth_val = record.get('depth')
+                        self.log.info('Present depth count at nsq %d' % (depth_val))
+                        if depth_val > self.DEPTH_LIMIT_AT_NSQ:
+                            self.has_nsq_limit_exceeded = True
+                        else:
+                            self.has_nsq_limit_exceeded = False
+            except:
+                pass
+            finally:
+                time.sleep(self.WAIT_TIME_TO_CHECK_DEPTH_AT_NSQ)
 
     def send_to_nsq(self):
+        self.log.info('Entered the send_to_nsq function')
         msgs = []
         last_push_ts = time.time()
         url = MPUB_URL % (self.nsqd_http_address, self.nsqtopic)
-
         while 1:
             read_from_q = False
 
@@ -143,12 +155,12 @@ class LogCollector(BaseScript):
             try:
                 if should_push:
                     while 1:
-                        has_nsq_depth_limit_reached = self.check_depth_at_nsq() > 100
-                        if not has_nsq_depth_limit_reached:
+                        if not self.has_nsq_limit_exceeded:
                             try:
                                 self.session.post(url, data='\n'.join(json.dumps(x['log']) for x in msgs)) # TODO What if session expires?
-                                self.log.info('sent logs to nsq, num sent = %d' % (len(msgs)))
+                                self.log.info('Sent logs to nsq, num sent = %d' % (len(msgs)))
                                 self.confirm_success(msgs)
+                                self.log.info('Updated the offset file of pygtail for %d lines' % (len(msgs)))
 
                                 msgs = []
                                 last_push_ts = time.time()
@@ -159,7 +171,8 @@ class LogCollector(BaseScript):
                                 continue
                             break
                         else:
-                            time.sleep(self.SLEEP_TIME)
+                            self.log.info('nsq depth limit exceeded, waiting for %d secs' % (self.WAIT_TIME_TO_CHECK_DEPTH_AT_NSQ))
+                            time.sleep(self.WAIT_TIME_TO_CHECK_DEPTH_AT_NSQ)
 
             except (SystemExit, KeyboardInterrupt): raise
             finally:
@@ -195,7 +208,10 @@ class LogCollector(BaseScript):
 
     def start(self):
         self.queue = Queue.Queue(maxsize=self.QUEUE_MAX_SIZE)
+        self.log.info('Created queue object with max size %d' % (self.QUEUE_MAX_SIZE))
         self.session = requests.Session()
+        self.log.info('Created requests session object')
+        self.has_nsq_limit_exceeded = False
 
         log_files = self._prepare_log_files_list()
 
@@ -207,5 +223,10 @@ class LogCollector(BaseScript):
         th = Thread(target=self.send_to_nsq)
         th.daemon = True
         th.start()
+
+        th = Thread(target=self.check_depth_at_nsq)
+        th.daemon = True
+        th.start()
+        self.log.info('Started checking depth at nsq')
 
         th.join()
