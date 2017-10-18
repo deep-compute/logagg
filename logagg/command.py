@@ -19,7 +19,10 @@ class LogaggCommand(BaseScript):
                         self.args.nsqchannel,self.args.nsqd_tcp_address,\
                         self.args.mongodb_server_url,self.args.mongodb_port,\
                         self.args.mongodb_user_name,self.args.mongodb_password,\
-                        self.args.mongodb_database,self.args.mongodb_collection)
+                        self.args.mongodb_database,self.args.mongodb_collection,\
+                        self.args.influxdb_server_url,self.args.influxdb_port,\
+                        self.args.influxdb_user_name,self.args.influxdb_password,\
+                        self.args.influxdb_database)
         forwarder.start()
 
     def define_subcommands(self, subcommands):
@@ -48,6 +51,12 @@ class LogaggCommand(BaseScript):
         forward_cmd.add_argument('--mongodb-password', help='password to authenticate mongodb')
         forward_cmd.add_argument('--mongodb-database', help='database to store logs')
         forward_cmd.add_argument('--mongodb-collection', help='collection to store logs')
+
+        forward_cmd.add_argument('--influxdb-server-url', help='DNS of the server whrer influxdb is running')
+        forward_cmd.add_argument('--influxdb-port', help='port where influxdb is running')
+        forward_cmd.add_argument('--influxdb-user-name', help='username of influxdb')
+        forward_cmd.add_argument('--influxdb-password', help='password to authenticate influxdb')
+        forward_cmd.add_argument('--influxdb-database', help='database to store metrics')
 
 def main():
     LogaggCommand().start()

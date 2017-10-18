@@ -14,6 +14,8 @@ def nginx_access(line):
     """
 
     log = json.loads(line)
+    if '-' in log.get('upstream_response_time'):
+        log['upstream_time'] = 0.0
     log = convert_str2int(log)
 
     return dict(
