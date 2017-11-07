@@ -14,6 +14,8 @@ def nginx_access(line):
     """
 
     log = json.loads(line)
+    if '-' in log.get('upstream_response_time'):
+        log['upstream_response_time'] = 0.0
     log = convert_str2int(log)
 
     return dict(
@@ -42,7 +44,7 @@ def mongodb(line):
 def convert_str2int(data):
     for key, val in data.items():
         if isinstance(val, basestring):
-            if val.isdigit() or val.replace('.', '', 1).isdigit():
+            if val.isdigit() or val.replace('.', '', 1).isdigit() or val.lstrip('-+').replace('.', '', 1).isdigit():
                 data[key] = float(val)
     return data
 
