@@ -200,10 +200,10 @@ class LogForwarder(BaseScript):
             "measurement": measurement,
             "fields": event,
             "tags": {
-            "host": host,
-            "request": request
+                "host": host,
+                "request": request
+                }
             }
-        }
         return pointValues
 
     def _ack_messages(self, msgs):
