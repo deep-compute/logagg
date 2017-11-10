@@ -5,6 +5,9 @@ from threading import Thread
 
 import pymongo
 from pymongo import MongoClient
+from influxdb import InfluxDBClient
+from influxdb.client import InfluxDBClientError
+from influxdb.client import InfluxDBServerError
 from nsq.reader import Reader
 from basescript import BaseScript
 
@@ -20,8 +23,18 @@ class LogForwarder(BaseScript):
     MAX_SECONDS_TO_PUSH = 1
     MAX_MESSAGES_TO_PUSH = 200
 
+    API = 'api'
+    METRIC = 'metric'
+    NGINX_METRIC = 'nginx_metric'
+    DJANGO_METRIC = 'django_metric'
+    NGINX_HANDLER = 'logagg.collect.handlers.nginx_access'
+    DJANGO_HANDLER = 'logagg.collect.handlers.django'
+
+    INFLUXDB_RECORDS = []
+
     def __init__(self, log, args, nsqtopic, nsqchannel, nsqd_tcp_address, mongodb_server_url,\
-            mongodb_port, mongodb_user_name, mongodb_password, mongodb_database, mongodb_collection):
+            mongodb_port, mongodb_user_name, mongodb_password, mongodb_database, mongodb_collection,\
+            influxdb_server_url, influxdb_port, influxdb_user_name, influxdb_password, influxdb_database):
 
         self.log = log
         self.args = args
@@ -35,6 +48,12 @@ class LogForwarder(BaseScript):
         self.mongodb_database = mongodb_database
         self.mongodb_collection = mongodb_collection
 
+        self.influxdb_server_url = influxdb_server_url
+        self.influxdb_port = influxdb_port
+        self.influxdb_user_name = influxdb_user_name
+        self.influxdb_password = influxdb_password
+        self.influxdb_database = influxdb_database
+
     def start(self):
 
         # Establish connection to MongoDB to store the nsq messages
@@ -46,6 +65,13 @@ class LogForwarder(BaseScript):
         self.log.info('Created database: %s at MongoDB' % (self.mongo_database))
         self.mongo_coll = self.mongo_database[self.mongodb_collection]
         self.log.info('Created collection: %s for MongoDB database %s' % (self.mongo_coll, self.mongo_database))
+
+        # Establish connection to influxdb to store metrics
+        self.influxdb_client = InfluxDBClient(self.influxdb_server_url, self.influxdb_port, self.influxdb_user_name,
+                    self.influxdb_password, self.influxdb_database)
+        self.log.info('Established connection to InfluxDB server: %s' % (self.influxdb_server_url))
+        self.influxdb_database = self.influxdb_client.create_database(self.influxdb_database)
+        self.log.info('Created database: %s at InfluxDB' % (self.influxdb_database))
 
         # Initialize a queue to carry messages between the
         # producer (nsq_reader) and the consumer (read_from_q)
@@ -92,7 +118,7 @@ class LogForwarder(BaseScript):
 
             try:
                 if should_push:
-                    self.log.info('Writing %d messages to MongoDB' % (len(msgs)))
+                    self.log.info('Writing %d messages to databases' % (len(msgs)))
                     self._write_messages(msgs)
                     self._ack_messages(msgs)
                     self.log.info('Ack to nsq is done for %d msgs' % (len(msgs)))
@@ -102,7 +128,83 @@ class LogForwarder(BaseScript):
 
             except (SystemExit, KeyboardInterrupt): raise
             except pymongo.errors.ServerSelectionTimeoutError:
-                self.log.exception('Push to mongo and ack to nsq failed')
+                self.log.exception('Push to databases and ack to nsq failed')
+
+    def parse_msg_to_send_influxdb(self, msgs_list):
+        series = []
+        for msg in msgs_list:
+
+            if msg.get('error'):
+                continue
+
+            time = msg.get('timestamp')
+            if msg.get('type') == self.METRIC:
+                event = msg.get('data').get('event')
+                metric = event.get('req_fn')
+                fields = event
+                tags = {}
+                tags['host'] = event.get('host')
+                tags['name'] = event.get('name')
+
+                if metric == self.API:
+                    tags['fn'] = event.get('fn')
+                    tags['success'] = event.get('success')
+
+                pointValues = {
+                    "time": time,
+                    "measurement": metric,
+                    "fields": fields,
+                    "tags": tags
+                   }
+                series.append(pointValues)
+
+            elif msg.get('handler') == self.NGINX_HANDLER:
+                nginx_metric = self.parse_nginx_metric(msg)
+                series.append(nginx_metric)
+
+            elif msg.get('handler') == self.DJANGO_HANDLER:
+                django_metric = self.parse_django_metric(msg)
+                series.append(django_metric)
+
+        return series
+
+    def parse_django_metric(self, msg):
+        if isinstance(msg.get('data'), dict) and isinstance(msg.get('data').get('message'), dict):
+            event = msg.get('data').get('message')
+            if 'processing_time' in event:
+                time = msg.get('timestamp')
+                host = event.get('host')
+                url = event.get('url')
+                user = event.get('user')
+                measurement = self.DJANGO_METRIC
+                pointValues = {
+                    "time": time,
+                    "measurement": measurement,
+                    "fields": event,
+                    "tags": {
+                        "host": host,
+                        "url": url,
+                        "user": user
+                        }
+                    }
+                return pointValues
+
+    def parse_nginx_metric(self, msg):
+        time = msg.get('timestamp')
+        event = msg.get('data', {})
+        request = event.get('request', '')
+        measurement = self.NGINX_METRIC
+        host =  msg.get('host', '')
+        pointValues = {
+            "time": time,
+            "measurement": measurement,
+            "fields": event,
+            "tags": {
+                "host": host,
+                "request": request
+                }
+            }
+        return pointValues
 
     def _ack_messages(self, msgs):
         for msg in msgs:
@@ -119,8 +221,25 @@ class LogForwarder(BaseScript):
             msg_body = json.loads(msg.body)
             msg_body['_id'] = msg_body.pop('id')
             msgs_list.append(msg_body)
+
         try:
+            self.log.info('inserting %d msgs into mongodb' % (len(msgs)))
             self.mongo_coll.insert_many([msg for msg in msgs_list], ordered=False)
             self.log.info("inserted %d msgs into mongodb" % (len(msgs)))
         except pymongo.errors.BulkWriteError as bwe:
             self.log.exception('Write to mongo failed. Details: %s' % bwe.details)
+
+        self.log.info('Parsing of metrics started')
+        records = self.parse_msg_to_send_influxdb(msgs_list)
+        self.INFLUXDB_RECORDS.extend(records)
+        self.log.info('Parsing of metrics is completed')
+
+        if self.INFLUXDB_RECORDS and len(self.INFLUXDB_RECORDS) >= 200:
+            self.INFLUXDB_RECORDS = [record for record in self.INFLUXDB_RECORDS if record]
+            try:
+                self.log.info('inserting the %d metrics into influxdb' % (len(self.INFLUXDB_RECORDS)))
+                self.influxdb_client.write_points(self.INFLUXDB_RECORDS)
+                self.log.info("inserted the metrics into influxdb %d" % (len(self.INFLUXDB_RECORDS)))
+                self.INFLUXDB_RECORDS = []
+            except (InfluxDBClientError, InfluxDBServerError) as e:
+                self.log.exception("failed to insert metric %s" % (self.INFLUXDB_RECORDS))
