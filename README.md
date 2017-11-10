@@ -8,7 +8,8 @@ Collect all the logs from the server and parses it by making a common schema for
 
 > Note: tested and it works in python2.7 and not tested in other versions.
 
-- Install the `nsq` package by running commands,
+- Install the `nsq` package, at where we need to bring up the `nsq` server.
+- Run the following commands to install `nsq`:
 ```bash
 sudo apt-get install libsnappy-dev
 wget https://s3.amazonaws.com/bitly-downloads/nsq/nsq-1.0.0-compat.linux-amd64.go1.8.tar.gz
@@ -16,7 +17,8 @@ tar zxvf nsq-1.0.0-compat.linux-amd64.go1.8.tar.gz
 sudo cp nsq-1.0.0-compat.linux-amd64.go1.8/bin/{nsqd,nsqlookupd,nsqadmin} /usr/local/bin
 ```
 
-- Install the `logagg` package by running commands,
+- Install the `logagg` package, at where we collect the logs and at where we forward the logs:
+- Run the following commands to install `logagg`:
 ```bash
 git clone "https://github.com/deep-compute/logagg.git"
 cd logagg
@@ -25,11 +27,11 @@ sudo python setup.py install
 
 ## Usage
 
-### Bring up the `nsq` instances at the server
+### Bring up the `nsq` instances at the required server:
 ```
 nsqlookupd
-nsqd -lookupd-tcp-address localhost:4160
-nsqadmin -lookupd-http-address localhost:4161
+nsqd -lookupd-tcp-address <ip-addr or DNS>:4160
+nsqadmin -lookupd-http-address <ip-addr or DNS>:4161
 ```
 
 ### Types of handlers we support
@@ -69,7 +71,7 @@ commands:
     collect             Collects the logs from different processes and sends
                         to nsq
     forward             Collects all the messages from nsq and pushes to
-                        MongoDB
+                        storage engine
 ```
 
 - For `logagg collect`
@@ -107,6 +109,11 @@ usage: logagg forward [-h] [--nsqtopic NSQTOPIC] [--nsqchannel NSQCHANNEL]
                       [--mongodb-password MONGODB_PASSWORD]
                       [--mongodb-database MONGODB_DATABASE]
                       [--mongodb-collection MONGODB_COLLECTION]
+                      [--influxdb-server-url INFLUXDB_SERVER_URL]
+                      [--influxdb-port INFLUXDB_PORT]
+                      [--influxdb-user-name INFLUXDB_USER_NAME]
+                      [--influxdb-password INFLUXDB_PASSWORD]
+                      [--influxdb-database INFLUXDB_DATABASE]
 
 optional arguments:
   -h, --help            show this help message and exit
@@ -128,7 +135,16 @@ optional arguments:
                         database to store logs
   --mongodb-collection MONGODB_COLLECTION
                         collection to store logs
-
+  --influxdb-server-url INFLUXDB_SERVER_URL
+                        DNS of the server where influxdb is running
+  --influxdb-port INFLUXDB_PORT
+                        port where influxdb is running
+  --influxdb-user-name INFLUXDB_USER_NAME
+                        username of influxdb
+  --influxdb-password INFLUXDB_PASSWORD
+                        password to authenticate influxdb
+  --influxdb-database INFLUXDB_DATABASE
+                        database to store metrics
 ```
 
 ### How to run the collector?
@@ -147,33 +163,53 @@ logagg collect /var/log/nginx/access.log:logagg.collect.handlers.nginx_access ng
 
 - Run `forwarder` by using command:
 ```bash
-logagg forward --nsqtopic <topic name> --nsqchannel <channel name> --nsqd-tcp-address <nsqd tcp address> --mongodb-user-name <username> --mongodb-password <password> --mongodb-server-url <server host> --mongodb-port <port num> --mongodb-database <database name> --mongodb-collection <collection name>
+logagg forward --nsqtopic <topic name> --nsqchannel <channel name> --nsqd-tcp-address <nsqd tcp address> --mongodb-user-name <username> --mongodb-password <password> --mongodb-server-url <server or  host> --mongodb-port <port num> --mongodb-database <database name> --mongodb-collection <collection name> --influxdb-server-url <server or host> --influxdb-port <port num> --influxdb-user-name <username> --influxdb-password <password> --influxdb-database <database name>
 ```
 
 - Example run command:
 ```bash
-logagg forward --nsqtopic nginx --nsqchannel test --nsqd-tcp-address localhost:4150 --mongodb-user-name abc --mongodb-password xxxxxx --mongodb-server-url localhost:27017 --mongodb-port 27017 --mongodb-database logs --mongodb-collection nginx
+logagg forward --nsqtopic nginx --nsqchannel test --nsqd-tcp-address localhost:4150 --mongodb-user-name abc --mongodb-password xxxxxx --mongodb-server-url localhost:27017 --mongodb-port 27017 --mongodb-database logs --mongodb-collection nginx --influxdb-server-url localhost --influxdb-port 8086 --influxdb-user-name abc --influxdb-password xxxxxx --influxdb-database metrics
 ```
 
 ### Check the message traffic at nsq
 - We can check, how many messages that are being written to nsq and reading from nsq through the browser, by going through the link:
 ```bash
-localhost:4171
+<nsq server name or ip-addr>:4171
 ```
 
 ### How to check the records at forwarder end with a storage engine.
-- Initially, we are sending logs to MongoDB. Further, we can support to send the logs to different storage engines.
+- We are sending logs to MongoDB and metrics to InfluxDB. Further, we can support to send the logs to different storage engines.
 
+#### How to check records at MongoDB?
 - Connect to the mongo shell and perform queries:
+```mongodb
+> use database_name
+> db.collection_name.find({'handler': 'logagg.collect.handlers.<handler_name>'})
+```
+- You can see the basic format of record like below:
+```json
+{
+  "_id": "UUID1",
+  "timestamp": "isoformat_time. Ex: 2017-08-01T07:32:24.183981Z",
+  "data": {},
+  "raw": "raw_log_line",
+  "host": "x.com",
+  "handler": "logagg.collect.handlers.<handler-name>",
+  "file": "/path/to/log/file",
+  "type": "log | metric"
+}
+```
+
 - Example to get the records for `nginx`:
 ```mongodb  
 > use nginx
 > db.logs.find({'handler': 'logagg.collect.handlers.nginx_access', 'data.request_time' : {$gt: 0}})
 ```
+- You should see something like below:
 ```json
 {
   "_id": "4ca83315a2b711e7bcf910bf487fe126",
-  "timestamp": " ",
+  "timestamp": "2017-08-01T07:32:24.183981Z",
   "data": {
     "status": 404,
     "body_bytes_sent": 152,
@@ -193,129 +229,30 @@ localhost:4171
   "type": "log"
 }
 ```
-
-- Example to get the records for `MongoDB`
-```mongodb
-> use mongodb
-> db.mongodb_collection.find({handler: 'logagg.collect.handlers.mongodb', timestamp: '2017-07-29T10:01:13.295+0200'})
+#### How to check metrics at InfluxDB?
+- For metrics, connect to the InfluxDB shell and perform queries.
+```influxdb
+> use database_name
+> show measurements
+> select <field_key> from <measurement_name>
 ```
-```json
-{
-  "_id": "07dd0055a28c11e7b37ec86000be3ada",
-  "timestamp": "2017-07-29T10:01:13.295+0200",
-  "data": {
-    "timestamp": "2017-07-29T10:01:13.295+0200",
-    "message": "distarch: x86_64",
-    "component": "CONTROL",
-    "severity": "I",
-    "context": "[initandlisten]"
-  },
-  "raw": "2017-07-29T10:01:13.295+0200 I CONTROL  [initandlisten]     distarch: x86_64",
-  "host": "localhost",
-  "handler": "logagg.collect.handlers.mongodb",
-  "file": "/var/log/mongodb/mongodb.log",
-  "type": "log"
-}
+- Example to get the metrics for a `measurement`:
+```influxdb
+> use nginx
+> select request_time from nginx_metric limit 10
 ```
-
-- Example to get the records for `django`
-```bash
-> use django
-> db.django.find({handler: 'logagg.collect.handlers.django', 'data.message.processing_time': 617.0011630058289})
+- You should see something like below:
 ```
-```json
-{
-  "_id": "bf20a6bfa2c511e7b530c86000be3ada",
-  "timestamp": "2017-09-26T14:19:45",
-  "data": {
-    "loglevel": "INFO",
-    "timestamp": "2017-09-26T14:19:45",
-    "message": {
-      "exception": null,
-      "processing_time": 617.0011630058289,
-      "url": "<url>",
-      "host": "localhost:9998",
-      "user": "root",
-      "post_contents": "",
-      "method": "POST"
-    },
-    "logname": "[app.middleware_log_req:50]"
-  },
-  "raw": "[26/Sep/2017 14:19:45] INFO [app.middleware_log_req:50] View func called: {\"exception\": null, \"processing_time\": 617.0011630058289, \"url\": \"<url>\", \"host\": \"localhost:9998\", \"user\": \"root\", \"post_contents\": \"\", \"method\": \"POST\"}",
-  "host": "localhost",
-  "handler": "logagg.collect.handlers.django",
-  "file": "/var/log/web/web.log",
-  "type": "log"
-}
-```
-
-- Example to get the records for `elasticsearch`
-```bash
-> use elasticsearch
-> db.eslog.find({'handler': 'logagg.collect.handlers.elasticsearch', 'data.resp_time_ms' : {$gt : 1000}})
-```
-```json
-{
-  "_id": "22b6983fa34811e7bcf910bf487fe126",
-  "timestamp": "2017-09-25T06:19:00,843",
-  "data": {
-    "gc_count": 1702635,
-    "resp_time_ms": 2400,
-    "level": "WARN ",
-    "timestamp": "2017-09-25T06:19:00,843",
-    "plugin": "Glsuj_2",
-    "query_time": 1400,
-    "garbage_collector": "gc"
-    "message": "o.e.m.j.JvmGcMonitorService"
-  },
-  "raw": "[2017-09-25T06:19:00,843][WARN ][o.e.m.j.JvmGcMonitorService] [Glsuj_2] [gc][1702635] overhead, spent [1.4s] collecting in the last [2.4s]",
-  "host": "localhost",
-  "handler": "logagg.collect.handlers.elasticsearch",
-  "file": "/var/log/es/elasticsearch.log",
-  "type": "log"
-}
-```
-
-- Example to get records for `basescript`
-```bash
-> use basescript
-> db.servers_stats.find({'handler': 'logagg.collect.handlers.basescript', 'data.event.g_ram_usage_percent': {$gt : 32}})
-```
-
-```json
-{
-  "_id": "39116307a45811e7abd338d547000c37",
-  "timestamp": "2017-09-10T01:11:02.162474Z",
-  "data": {
-    "timestamp": "2017-09-10T01:11:02.162474Z",
-    "event": {
-      "g_ram_avail": 134063063040,
-      "g_disk_usage_percent": 14.3,
-      "g_cpu_idle_percent": 99.83,
-      "name": "server_stats",
-      "g_ram_free": 4724101120,
-      "g_disk_total": 943679549440,
-      "timestamp": 1505005862162,
-      "g_swapmemory_usage_percent": 0,
-      "g_disk_usage": 128429932544,
-      "g_swapmemory_usage": 0,
-      "req_fn": "server_stats",
-      "g_ram_total": 270377811968,
-      "g_ram_usage": 133936140288,
-      "g_swapmemory_free": 0,
-      "g_swapmemory_total": 0,
-      "host": "localhost",
-      "g_cpu_usage_precent": 0.17,
-      "g_disk_free": 767289798656,
-      "g_ram_usage_percent": 50.4
-    },
-    "influx_metric": true,
-    "level": "info"
-  },
-  "raw": "{\"timestamp\": \"2017-09-10T01:11:02.162474Z\", \"event\": \"server_stats,host=localhost,name=server_stats g_cpu_idle_percent=99.83,g_cpu_usage_precent=0.17,g_disk_free=767289798656,g_disk_total=943679549440,g_disk_usage=128429932544,g_disk_usage_percent=14.3,g_ram_avail=134063063040,g_ram_free=4724101120,g_ram_total=270377811968,g_ram_usage=133936140288,g_ram_usage_percent=50.4,g_swapmemory_free=0,g_swapmemory_total=0,g_swapmemory_usage=0,g_swapmemory_usage_percent=0.0 1505005862162\", \"influx_metric\": true, \"level\": \"info\"}",
-  "host": "localhost",
-  "handler": "logagg.collect.handlers.basescript",
-  "file": "/var/log/stats/server_stats.log",
-  "type": "metric"
-}
+time                request_time
+----                ------------
+1508770751000000000 0.027
+1508770751000000000 0.026
+1508770753000000000 0.272
+1508770754000000000 0.028
+1508770756000000000 0.026
+1508770756000000000 0.007
+1508770757000000000 0.511
+1508770758000000000 0
+1508770761000000000 0.228
+1508770761000000000 0.247
 ```
