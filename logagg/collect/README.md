@@ -14,7 +14,8 @@ log_format  json  '{'
                     '"body_bytes_sent": "$body_bytes_sent",'
                     '"http_referer": "$http_referer",'
                     '"http_user_agent": "$http_user_agent",'
-                    '"http_x_forwarded_for": "$http_x_forwarded_for"'
+                    '"http_x_forwarded_for": "$http_x_forwarded_for",'
+                    '"upstream_response_time": "$upstream_response_time"'
                     '}';
 ```
 

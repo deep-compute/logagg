@@ -19,6 +19,7 @@ setup(
         "pymongo",
         "nsq-py",
         "pygtail==0.6.1",
+        "influxdb",
     ],
     package_dir={'logagg': 'logagg'},
     packages=find_packages('.'),
