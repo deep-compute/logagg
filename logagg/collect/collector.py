@@ -56,7 +56,7 @@ class LogCollector(BaseScript):
 
     def _collect_log_lines(self, log_file):
         L = log_file
-        self.log.info('Starting to read log lines from the file %s' % (L['fpath']))
+        self.log.info('Going to read log lines from the file %s' % (L['fpath']))
         freader = Pygtail(L['fpath'])
         for line_info in freader:
             _id = uuid.uuid1().hex
@@ -83,6 +83,7 @@ class LogCollector(BaseScript):
             self.queue.put(dict(log=log, freader=freader, line_info=line_info))
 
         while not freader.is_fully_acknowledged():
+            self.log.debug('Waiting for %f secs for the pygtail to get fully acknowledged' % (self.PYGTAIL_ACK_WAIT_TIME))
             time.sleep(self.PYGTAIL_ACK_WAIT_TIME)
 
     def collect_log_lines(self, log_file):
@@ -157,7 +158,7 @@ class LogCollector(BaseScript):
                     while 1:
                         if not self.has_nsq_limit_exceeded:
                             try:
-                                self.session.post(url, data='\n'.join(json.dumps(x['log']) for x in msgs)) # TODO What if session expires?
+                                self.session.post(url, data='\n'.join(json.dumps(x['log']) for x in msgs).encode(encoding='UTF-8',errors ='strict'),timeout=5.000) # TODO What if session expires?
                                 self.log.info('Sent logs to nsq, num sent = %d' % (len(msgs)))
                                 self.confirm_success(msgs)
                                 self.log.info('Updated the offset file of pygtail for %d lines' % (len(msgs)))
@@ -171,7 +172,7 @@ class LogCollector(BaseScript):
                                 continue
                             break
                         else:
-                            self.log.info('nsq depth limit exceeded, waiting for %d secs' % (self.WAIT_TIME_TO_CHECK_DEPTH_AT_NSQ))
+                            self.log.debug('nsq depth limit exceeded, waiting for %d secs' % (self.WAIT_TIME_TO_CHECK_DEPTH_AT_NSQ))
                             time.sleep(self.WAIT_TIME_TO_CHECK_DEPTH_AT_NSQ)
 
             except (SystemExit, KeyboardInterrupt): raise
