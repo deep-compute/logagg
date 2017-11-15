@@ -141,20 +141,12 @@ class LogForwarder(BaseScript):
             if msg.get('type') == self.METRIC:
                 event = msg.get('data').get('event')
                 metric = event.get('req_fn')
-                fields = event
-                tags = {}
-                tags['host'] = event.get('host')
-                tags['name'] = event.get('name')
-
-                if metric == self.API:
-                    tags['fn'] = event.get('fn')
-                    tags['success'] = event.get('success')
 
                 pointValues = {
                     "time": time,
                     "measurement": metric,
-                    "fields": fields,
-                    "tags": tags
+                    "fields": event,
+                    "tags": event
                    }
                 series.append(pointValues)
 
