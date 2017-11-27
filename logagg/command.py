@@ -41,7 +41,7 @@ class LogaggCommand(BaseScript):
         collect_cmd.add_argument('--nsqchannel', help='Channel of nsqd')
         collect_cmd.add_argument('--nsqd-http-address',
             default='localhost:4151', help='nsqd http address where we send the messages')
-        collect_cmd.add_argument('--depth-limit-at-nsq', type=int, default=20000,
+        collect_cmd.add_argument('--depth-limit-at-nsq', type=int, default=10000000,
             help='To limit the depth at nsq channel')
         collect_cmd.add_argument('--exception-logs-file',
                 default='/var/log/logagg/exception_logs.log', help='If collector fails to publish messages to nsq, will write the logs to a file')
