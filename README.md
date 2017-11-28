@@ -80,7 +80,10 @@ logagg collect --help
 ```
 - You should see something like
 ```bash
-usage: logagg collect [-h] [--nsqd-http-address NSQD_HTTP_ADDRESS]
+usage: logagg collect [-h] [--nsqchannel NSQCHANNEL]
+                      [--nsqd-http-address NSQD_HTTP_ADDRESS]
+                      [--depth-limit-at-nsq DEPTH_LIMIT_AT_NSQ]
+                      [--exception-logs-file EXCEPTION_LOGS_FILE]
                       file [file ...] nsqtopic
 
 positional arguments:
@@ -91,8 +94,15 @@ positional arguments:
 
 optional arguments:
   -h, --help            show this help message and exit
+  --nsqchannel NSQCHANNEL
+                        Channel of nsqd
   --nsqd-http-address NSQD_HTTP_ADDRESS
                         nsqd HTTP address where we send the messages
+  --depth-limit-at-nsq DEPTH_LIMIT_AT_NSQ
+                        To limit the depth at nsq channel
+  --exception-logs-file EXCEPTION_LOGS_FILE
+                        If collector fails to publish messages to nsq, will
+                        write the logs to a file
 ```
 
 - For `logagg forward`,
@@ -146,17 +156,18 @@ optional arguments:
   --influxdb-database INFLUXDB_DATABASE
                         database to store metrics
 ```
+> The channel name `--nsqchannel` at logagg collect and logagg forward should be the same name.
 
 ### How to run the collector?
 
 - Run `collector` by using command:
 ```bash
-logagg collect /path/to/input/log_file:logagg.collect.handlers.<handler_name> <topic name> --nsqd-http-address <nsqd http address>
+logagg collect /path/to/input/log_file:logagg.collect.handlers.<handler_name> <topic name> --nsqchannel <channel name> --nsqd-http-address <nsqd http address> --depth-limit-at-nsq <limit value> --exception-logs-file <file to write logs>
 ```
 
 - Example run command:
 ```bash
-logagg collect /var/log/nginx/access.log:logagg.collect.handlers.nginx_access nginx --nsqd-http-address localhost:4151  
+logagg collect /var/log/nginx/access.log:logagg.collect.handlers.nginx_access nginx --nsqchannel test --nsqd-http-address localhost:4151 --depth-limit-at-nsq 150000 --exception-logs-file /var/log/logagg/exception_logs.log
 ```
 
 ### How to run the forwarder?
