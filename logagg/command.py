@@ -11,7 +11,10 @@ class LogaggCommand(BaseScript):
                         self.args,
                         self.args.file,
                         self.args.nsqtopic,
-                        self.args.nsqd_http_address)
+                        self.args.nsqchannel,
+                        self.args.nsqd_http_address,
+                        self.args.depth_limit_at_nsq,
+                        self.args.exception_logs_file)
         collector.start()
 
     def forward(self):
@@ -35,8 +38,13 @@ class LogaggCommand(BaseScript):
             help='Provide absolute path of logfile including module name and function name, '
                     'eg: /var/log/nginx/access.log:logagg.collect.handlers.nginx_access')
         collect_cmd.add_argument('nsqtopic', help='Topic name to publish messages. Ex: logs_and_metrics')
+        collect_cmd.add_argument('--nsqchannel', help='Channel of nsqd')
         collect_cmd.add_argument('--nsqd-http-address',
             default='localhost:4151', help='nsqd http address where we send the messages')
+        collect_cmd.add_argument('--depth-limit-at-nsq', type=int, default=10000000,
+            help='To limit the depth at nsq channel')
+        collect_cmd.add_argument('--exception-logs-file',
+                default='/var/log/logagg/exception_logs.log', help='If collector fails to publish messages to nsq, will write the logs to a file')
 
         forward_cmd = subcommands.add_parser('forward', help='Collects all the messages from nsq and pushes to storage engine')
         forward_cmd.set_defaults(func=self.forward)

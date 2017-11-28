@@ -31,7 +31,6 @@ class LogCollector(BaseScript):
     QUEUE_MAX_SIZE = 2000
     MAX_MSGS_TO_PUSH = 100
     MAX_SECONDS_TO_PUSH = 1
-    DEPTH_LIMIT_AT_NSQ = 10000000 #10 Million #TODO: make it as command line argument
 
     TIME_WAIT = 0.25
     SLEEP_TIME = 1
@@ -39,12 +38,15 @@ class LogCollector(BaseScript):
     PYGTAIL_ACK_WAIT_TIME = 0.05
     WAIT_TIME_TO_CHECK_DEPTH_AT_NSQ = 5
 
-    def __init__(self, log, args, _file, nsqtopic, nsqd_http_address):
+    def __init__(self, log, args, _file, nsqtopic, nsqchannel, nsqd_http_address, depth_limit_at_nsq, exception_logs_file):
         self.log = log
         self.args = args
         self.file = _file
         self.nsqtopic = nsqtopic
+        self.nsqchannel = nsqchannel
         self.nsqd_http_address = nsqd_http_address
+        self.depth_limit_at_nsq = depth_limit_at_nsq
+        self.exception_logs_file = open(exception_logs_file, 'w')
 
     def _load_handler_fn(self, imp):
         self.log.info('Entered the _load_handler_fn')
@@ -116,9 +118,16 @@ class LogCollector(BaseScript):
                 for record in topics:
                     topic_name = record['topic_name']
                     if self.nsqtopic == topic_name:
-                        depth_val = record.get('depth')
+                        channels = record.get('channels', [])
+                        if channels:
+                            for channel in channels:
+                                channel_name = channel.get('channel_name')
+                                if self.nsqchannel == channel_name:
+                                    depth_val = channel.get('depth')
+                        if not channels:
+                            depth_val = record.get('depth')
                         self.log.info('Present depth count at nsq %d' % (depth_val))
-                        if depth_val > self.DEPTH_LIMIT_AT_NSQ:
+                        if depth_val > self.depth_limit_at_nsq:
                             self.has_nsq_limit_exceeded = True
                         else:
                             self.has_nsq_limit_exceeded = False
@@ -155,7 +164,17 @@ class LogCollector(BaseScript):
 
             try:
                 if should_push:
+                    counter = 0
+                    self.SLEEP_TIME = 1
                     while 1:
+                        if counter < 5 and counter > 0:
+                            self.SLEEP_TIME *= 2
+                        elif counter >= 5:
+                            self.log.debug('Logs which are failed to publish to nsq are writing to a file: %s' % (self.exception_logs_file.name))
+                            self.exception_logs_file.write('\n'.join(json.dumps(x['log']) for x in msgs))
+                            msgs = []
+                            break
+
                         if not self.has_nsq_limit_exceeded:
                             try:
                                 self.session.post(url, data='\n'.join(json.dumps(x['log']) for x in msgs).encode(encoding='UTF-8',errors ='strict'),timeout=5.000) # TODO What if session expires?
@@ -167,7 +186,9 @@ class LogCollector(BaseScript):
                                 last_push_ts = time.time()
                             except (SystemExit, KeyboardInterrupt): raise
                             except:
+                                counter += 1
                                 self.log.exception('During sending to nsq. Will retry ...')
+                                self.log.debug('Waiting for %d seconds' % (self.SLEEP_TIME))
                                 time.sleep(self.SLEEP_TIME)
                                 continue
                             break
