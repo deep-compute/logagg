@@ -168,7 +168,7 @@ class LogCollector(BaseScript):
                     self.SLEEP_TIME = 1
                     while 1:
                         if counter < 5 and counter > 0:
-                            self.SLEEP_TIME += 1
+                            self.SLEEP_TIME *= 2
                         elif counter >= 5:
                             self.log.debug('Logs which are failed to publish to nsq are writing to a file: %s' % (self.exception_logs_file.name))
                             self.exception_logs_file.write('\n'.join(json.dumps(x['log']) for x in msgs))
