@@ -14,7 +14,7 @@ from basescript import BaseScript
 class LogForwarder(BaseScript):
     DESC = "Gets all the logs from nsq and stores in the storage engines"
 
-    MAX_IN_FLIGHT = 100 # Number of messages to read from NSQ per shot
+    MAX_IN_FLIGHT = 200 # Number of messages to read from NSQ per shot
     QUEUE_MAX_SIZE = 5000
     SERVER_SELECTION_TIMEOUT = 500 # MongoDB server selection timeout
 
@@ -161,25 +161,41 @@ class LogForwarder(BaseScript):
         return series
 
     def parse_django_metric(self, msg):
-        if isinstance(msg.get('data'), dict) and isinstance(msg.get('data').get('message'), dict):
-            event = msg.get('data').get('message')
+        data = msg.get('data')
+        time = msg.get('timestamp')
+        loglevel = msg.get('data').get('loglevel')
+        host = msg.get('host')
+
+        if isinstance(data, dict) and isinstance(data.get('message'), dict):
+            event = data.get('message')
             if 'processing_time' in event:
-                time = msg.get('timestamp')
-                host = event.get('host')
                 url = event.get('url')
                 user = event.get('user')
-                measurement = self.DJANGO_METRIC
+                event['loglevel'] = loglevel
                 pointValues = {
                     "time": time,
-                    "measurement": measurement,
+                    "measurement": self.DJANGO_METRIC,
                     "fields": event,
                     "tags": {
                         "host": host,
                         "url": url,
-                        "user": user
+                        "user": user,
+                        "loglevel": loglevel
                         }
                     }
                 return pointValues
+
+        elif isinstance(data, dict):
+            pointValues = {
+                "time": time,
+                "measurement": self.DJANGO_METRIC,
+                "fields": data,
+                "tags": {
+                    "host": host,
+                    "loglevel": loglevel
+                    }
+                }
+            return pointValues
 
     def parse_nginx_metric(self, msg):
         time = msg.get('timestamp')
