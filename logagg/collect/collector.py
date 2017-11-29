@@ -67,7 +67,8 @@ class LogCollector(BaseScript):
                     host=HOST,
                     handler=L['handler'],
                     raw=line,
-                    timestamp=datetime.datetime.utcnow().isoformat()
+                    timestamp=datetime.datetime.utcnow().isoformat(),
+                    type=json.loads(line).get("type", "log")
                   )
 
             try:

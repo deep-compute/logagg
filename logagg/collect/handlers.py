@@ -19,7 +19,6 @@ def nginx_access(line):
     log = convert_str2int(log)
 
     return dict(
-        type='log',
         timestamp=log.get('timestamp',' '),
         data=log
     )
@@ -36,7 +35,6 @@ def mongodb(line):
     mongodb_log = dict(zip(keys,values))
 
     return dict(
-        type='log',
         timestamp=values[0],
         data=mongodb_log
     )
@@ -85,13 +83,11 @@ def django(line):
         data['message'] = message
 
         return dict(
-                type='log',
                 timestamp=data['timestamp'],
                 data=data
             )
     else:
         return dict(
-            type='log',
             timestamp=datetime.datetime.isoformat(datetime.datetime.utcnow()),
             data=line
         )
@@ -139,14 +135,12 @@ def basescript(line):
 
     log = json.loads(line)
     is_metric = log.get('influx_metric', False)
-    _type = 'metric' if is_metric else 'log'
     if is_metric:
 	event = log.get('event', ' ')
 	event_dict = _parse_metric_event(event)
 	log['event'] = event_dict
 
     return dict(
-        type=_type,
         timestamp=log.get('timestamp', ' '),
         data=log
     )
@@ -184,14 +178,12 @@ def elasticsearch(line):
         data = convert_str2int(data)
 
         return dict(
-                type='log',
                 timestamp=values[0],
                 data=data
         )
 
     else:
         return dict(
-                type='log',
                 timestamp=datetime.datetime.isoformat(datetime.datetime.now()),
                 data=line
         )
