@@ -134,8 +134,7 @@ def basescript(line):
     """
 
     log = json.loads(line)
-    is_metric = log.get('influx_metric', False)
-    if is_metric:
+    if log.get('type', '') == "metric":
 	event = log.get('event', ' ')
 	event_dict = _parse_metric_event(event)
 	log['event'] = event_dict
