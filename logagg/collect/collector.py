@@ -61,7 +61,6 @@ class LogCollector(BaseScript):
         self.log.info('Going to read log lines from the file %s' % (L['fpath']))
         freader = Pygtail(L['fpath'])
         for line_info in freader:
-            _id = uuid.uuid1().hex
             line = line_info['line'][:-1] # remove new line char at the end
             log = dict(
                     id=uuid.uuid1().hex,
