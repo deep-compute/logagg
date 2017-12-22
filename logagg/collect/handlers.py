@@ -134,7 +134,8 @@ def basescript(line):
     """
 
     log = json.loads(line)
-    if log.get('type', '') == "metric":
+    type = log.get('type', 'log')
+    if type == "metric":
         event = log.get('event', ' ')
         event_dict = _parse_metric_event(event)
         log['event'] = event_dict
@@ -147,7 +148,8 @@ def basescript(line):
     return dict(
         timestamp=log.get('timestamp', ' '),
         data=log,
-        id=log_id
+        id=log_id,
+        type=type
     )
 
 def elasticsearch(line):

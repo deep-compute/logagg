@@ -69,10 +69,10 @@ class LogCollector(BaseScript):
                     handler=L['handler'],
                     raw=line,
                     timestamp=datetime.datetime.utcnow().isoformat(),
+                    type='log',
                   )
 
             try:
-                log['type'] = json.loads(line).get("type", "log")
                 _log = L['handler_fn'](line)
                 log.update(_log)
                 self.validate_log_format(log)
