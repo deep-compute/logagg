@@ -134,15 +134,22 @@ def basescript(line):
     """
 
     log = json.loads(line)
-    is_metric = log.get('influx_metric', False)
-    if is_metric:
-	event = log.get('event', ' ')
-	event_dict = _parse_metric_event(event)
-	log['event'] = event_dict
+    type = log.get('type', 'log')
+    if type == "metric":
+        event = log.get('event', ' ')
+        event_dict = _parse_metric_event(event)
+        log['event'] = event_dict
+        log['session_id'] = event_dict.get("g_session_id", "")
+
+    log_id = log.get('id', '')
+    if isinstance(log_id, unicode):
+        log_id = str(log_id)
 
     return dict(
         timestamp=log.get('timestamp', ' '),
-        data=log
+        data=log,
+        id=log_id,
+        type=type
     )
 
 def elasticsearch(line):
