@@ -153,7 +153,6 @@ class LogForwarder(BaseScript):
         event = msg.get('data', {})
         measurement = self.NGINX_METRIC
         time = msg.get('timestamp')
-        msg_id = msg['_id']
         #to be stored as tags
         host =  msg.get('host', '')
         request = event.get('request', '')
@@ -176,7 +175,6 @@ class LogForwarder(BaseScript):
         	 "connection_requests": connection_requests
                     },
             "tags": {
-                "id": msg_id,
                 "host": host,
                 "request": request,
                 "status": status,
@@ -187,15 +185,13 @@ class LogForwarder(BaseScript):
         
         
     def parse_baseScript_metric(self, msg):
-        msg_id = msg['_id']
         time = msg.get('timestamp')
         event = msg.get('data').get('event')
         measurement = event.get('req_fn')
         tags = dict()
-        tags['id'] = msg_id
         metrics = dict()
         for key in event:
-            if key == 'timestamp':
+            if key == 'timestamp' and key == 'req_fn':
                 pass
             elif isinstance(event[key], basestring):
                 tags[key] = event[key]
@@ -212,7 +208,6 @@ class LogForwarder(BaseScript):
                    
     def parse_django_metric(self, msg):
         time = msg.get('timestamp')
-        msg_id = msg.get('_id')
 	data = msg.get('data')
 	loglevel = data.get('loglevel')
 	host = msg.get('host')
@@ -235,7 +230,6 @@ class LogForwarder(BaseScript):
 		        "user": user,
 		        "loglevel": loglevel,
 		        "method" : method,
-                        "id": msg_id
 		        }
 		    }
                 return pointValues
