@@ -7,7 +7,7 @@
 log_format  json  '{'
                     '"remote_addr": "$remote_addr",'
                     '"remote_user": "$remote_user",'
-                    '"timestamp": "$time_iso8601",'
+                    '"timestamp": "$msec",'
                     '"request": "$request",'
                     '"status": "$status",'
                     '"request_time": "$request_time",'

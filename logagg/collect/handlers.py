@@ -14,6 +14,8 @@ def nginx_access(line):
     """
 
     log = json.loads(line)
+    timestamp_iso = datetime.datetime.utcfromtimestamp(float(log['timestamp'])).isoformat()
+    log.update({'timestamp':timestamp_iso})
     if '-' in log.get('upstream_response_time'):
         log['upstream_response_time'] = 0.0
     log = convert_str2int(log)
