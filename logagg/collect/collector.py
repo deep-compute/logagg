@@ -235,7 +235,6 @@ class LogCollector(BaseScript):
         heartbeat_number = 1
         while True:
             cur_ts = time.time()
-            s.close()
             
             heartbeat_payload = {'host': HOST,
                     'name': self.name,
