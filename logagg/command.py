@@ -15,7 +15,7 @@ class LogaggCommand(BaseScript):
                         self.args.nsqd_http_address,
                         self.args.depth_limit_at_nsq,
                         self.args.exception_logs_file,
-                        self.args.heartbeat_sleep_time)
+                        self.args.heartbeat_interval)
         collector.start()
 
     def forward(self):
@@ -46,8 +46,8 @@ class LogaggCommand(BaseScript):
             help='To limit the depth at nsq channel')
         collect_cmd.add_argument('--exception-logs-file',
                 default='/var/log/logagg/exception_logs.log', help='If collector fails to publish messages to nsq, will write the logs to a file')
-        collect_cmd.add_argument('--heartbeat-sleep-time',
-                type=int,default=5, help='Send heartbeats to a nsqTopic "heartbeat" to know which IPs are running logagg')
+        collect_cmd.add_argument('--heartbeat-interval',
+                type=int,default=30, help='Send heartbeats to a nsqTopic "heartbeat" to know which hosts are running logagg')
 
         forward_cmd = subcommands.add_parser('forward', help='Collects all the messages from nsq and pushes to storage engine')
         forward_cmd.set_defaults(func=self.forward)

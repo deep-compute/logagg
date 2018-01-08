@@ -38,7 +38,7 @@ class LogCollector(BaseScript):
     PYGTAIL_ACK_WAIT_TIME = 0.05
     WAIT_TIME_TO_CHECK_DEPTH_AT_NSQ = 5
 
-    def __init__(self, log, args, _file, nsqtopic, nsqchannel, nsqd_http_address, depth_limit_at_nsq, exception_logs_file, heartbeat_sleep_time):
+    def __init__(self, log, args, _file, nsqtopic, nsqchannel, nsqd_http_address, depth_limit_at_nsq, exception_logs_file, heartbeat_interval):
         self.log = log
         self.args = args
         self.file = _file
@@ -47,7 +47,7 @@ class LogCollector(BaseScript):
         self.nsqd_http_address = nsqd_http_address
         self.depth_limit_at_nsq = depth_limit_at_nsq
         self.exception_logs_file = open(exception_logs_file, 'w')
-        self.heartbeat_sleep_time = heartbeat_sleep_time
+        self.heartbeat_interval = heartbeat_interval
 
     def _load_handler_fn(self, imp):
         self.log.info('Entered the _load_handler_fn')
@@ -235,20 +235,17 @@ class LogCollector(BaseScript):
         heartbeat_number = 1
         while True:
             cur_ts = time.time()
-            
-            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            s.connect(("8.8.8.8", 80))
-            ip = s.getsockname()[0]
             s.close()
-            heartbeat_payload = {'host':HOST,
-                    'ip': ip,
-                    'heartbeat_number':heartbeat_number,
-                    'timestamp' : cur_ts
+            
+            heartbeat_payload = {'host': HOST,
+                    'name': self.name,
+                    'heartbeat_number': heartbeat_number,
+                    'timestamp': cur_ts
                     }
             self.log.info('Sending %d(th) heartbeat'%(heartbeat_number))
             self.session.post(url, data=json.dumps(heartbeat_payload).encode(encoding='UTF-8',errors ='strict'),timeout=5.000)
             heartbeat_number = heartbeat_number + 1
-            time.sleep(self.heartbeat_sleep_time)
+            time.sleep(self.heartbeat_interval)
 
 
     def start(self):
