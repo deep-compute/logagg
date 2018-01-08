@@ -2,7 +2,6 @@ import json
 import time
 import Queue
 from threading import Thread
-
 import pymongo
 from pymongo import MongoClient
 from influxdb import InfluxDBClient
@@ -53,7 +52,7 @@ class LogForwarder(BaseScript):
         self.influxdb_user_name = influxdb_user_name
         self.influxdb_password = influxdb_password
         self.influxdb_database = influxdb_database
-
+        
     def start(self):
 
         # Establish connection to MongoDB to store the nsq messages
@@ -122,7 +121,7 @@ class LogForwarder(BaseScript):
                     self._write_messages(msgs)
                     self._ack_messages(msgs)
                     self.log.info('Ack to nsq is done for %d msgs' % (len(msgs)))
-
+                    
                     msgs = []
                     last_push_ts = time.time()
 
@@ -133,22 +132,12 @@ class LogForwarder(BaseScript):
     def parse_msg_to_send_influxdb(self, msgs_list):
         series = []
         for msg in msgs_list:
-
             if msg.get('error'):
                 continue
-
             time = msg.get('timestamp')
             if msg.get('type') == self.METRIC:
-                event = msg.get('data').get('event')
-                metric = event.get('req_fn')
-
-                pointValues = {
-                    "time": time,
-                    "measurement": metric,
-                    "fields": event,
-                    "tags": event
-                   }
-                series.append(pointValues)
+                baseScript_metric = self.parse_baseScript_metric(msg)
+                series.append(baseScript_metric)
 
             elif msg.get('handler') == self.NGINX_HANDLER:
                 nginx_metric = self.parse_nginx_metric(msg)
@@ -157,62 +146,94 @@ class LogForwarder(BaseScript):
             elif msg.get('handler') == self.DJANGO_HANDLER:
                 django_metric = self.parse_django_metric(msg)
                 series.append(django_metric)
-
         return series
-
-    def parse_django_metric(self, msg):
-        data = msg.get('data')
-        time = msg.get('timestamp')
-        loglevel = msg.get('data').get('loglevel')
-        host = msg.get('host')
-
-        if isinstance(data, dict) and isinstance(data.get('message'), dict):
-            event = data.get('message')
-            if 'processing_time' in event:
-                url = event.get('url')
-                user = event.get('user')
-                event['loglevel'] = loglevel
-                pointValues = {
-                    "time": time,
-                    "measurement": self.DJANGO_METRIC,
-                    "fields": event,
-                    "tags": {
-                        "host": host,
-                        "url": url,
-                        "user": user,
-                        "loglevel": loglevel
-                        }
-                    }
-                return pointValues
-
-        elif isinstance(data, dict):
-            pointValues = {
-                "time": time,
-                "measurement": self.DJANGO_METRIC,
-                "fields": data,
-                "tags": {
-                    "host": host,
-                    "loglevel": loglevel
-                    }
-                }
-            return pointValues
-
+        
+        
     def parse_nginx_metric(self, msg):
-        time = msg.get('timestamp')
         event = msg.get('data', {})
-        request = event.get('request', '')
         measurement = self.NGINX_METRIC
+        time = msg.get('timestamp')
+        #to be stored as tags
         host =  msg.get('host', '')
+        request = event.get('request', '')
+        status = event.get('status')
+        remote_addr = event.get('remote_addr', '')
+        
+        #feilds that are metrics
+        request_time = event.get('request_time')
+        body_bytes_sent = event.get('body_bytes_sent')
+        upstream_response_time = event.get('upstream_response_time')
+        connection_requests = event.get('connection_requests')
+        
         pointValues = {
             "time": time,
             "measurement": measurement,
-            "fields": event,
+            "fields": {
+        	 "request_time": request_time,
+        	 "body_bytes_sent": body_bytes_sent,
+        	 "upstream_response_time": upstream_response_time,
+        	 "connection_requests": connection_requests
+                    },
             "tags": {
                 "host": host,
-                "request": request
-                }
+                "request": request,
+                "status": status,
+                "remote_addr": remote_addr
+                    }
             }
         return pointValues
+        
+        
+    def parse_baseScript_metric(self, msg):
+        time = msg.get('timestamp')
+        event = msg.get('data').get('event')
+        measurement = event.get('req_fn')
+        tags = dict()
+        metrics = dict()
+        for key in event:
+            if key == 'timestamp' and key == 'req_fn':
+                pass
+            elif isinstance(event[key], basestring):
+                tags[key] = event[key]
+            elif isinstance(event[key], (int,float)):
+                metrics[key] = event[key]     
+        pointValues = {
+                "time": time,
+                "measurement": measurement,
+                "fields": metrics,
+                "tags": tags
+               }
+        return pointValues
+              
+                   
+    def parse_django_metric(self, msg):
+        time = msg.get('timestamp')
+	data = msg.get('data')
+	loglevel = data.get('loglevel')
+	host = msg.get('host')
+	if isinstance(data, dict) and isinstance(data.get('message'), dict):
+	    event = data.get('message')
+	    if 'processing_time' in event:
+		url = event.get('url')
+		user = event.get('user')
+		method = event.get('method')
+		processing_time = event.get('processing_time')
+		pointValues = {
+		    "time": time,
+		    "measurement": self.DJANGO_METRIC,
+		    "fields": {
+                        "processing_time": processing_time,
+		        },
+		    "tags": {
+		        "host": host,
+		        "url": url,
+		        "user": user,
+		        "loglevel": loglevel,
+		        "method" : method,
+		        }
+		    }
+                return pointValues
+
 
     def _ack_messages(self, msgs):
         for msg in msgs:
@@ -244,6 +265,7 @@ class LogForwarder(BaseScript):
 
         if self.INFLUXDB_RECORDS and len(self.INFLUXDB_RECORDS) >= 200:
             self.INFLUXDB_RECORDS = [record for record in self.INFLUXDB_RECORDS if record]
+            print 'record length %d' %(len(self.INFLUXDB_RECORDS))
             try:
                 self.log.info('inserting the %d metrics into influxdb' % (len(self.INFLUXDB_RECORDS)))
                 self.influxdb_client.write_points(self.INFLUXDB_RECORDS)

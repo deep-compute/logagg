@@ -26,7 +26,7 @@ After a downtime of collector, pygtail is missing logs from rotational files
 '''
 
 class LogCollector(BaseScript):
-    DESC = 'Collects the log information and sends to NSQChannel'
+    DESC = 'Collects the log information and sends to NSQTopic'
 
     QUEUE_MAX_SIZE = 2000
     MAX_MSGS_TO_PUSH = 100
@@ -38,7 +38,7 @@ class LogCollector(BaseScript):
     PYGTAIL_ACK_WAIT_TIME = 0.05
     WAIT_TIME_TO_CHECK_DEPTH_AT_NSQ = 5
 
-    def __init__(self, log, args, _file, nsqtopic, nsqchannel, nsqd_http_address, depth_limit_at_nsq, exception_logs_file):
+    def __init__(self, log, args, _file, nsqtopic, nsqchannel, nsqd_http_address, depth_limit_at_nsq, exception_logs_file, heartbeat_interval):
         self.log = log
         self.args = args
         self.file = _file
@@ -47,6 +47,7 @@ class LogCollector(BaseScript):
         self.nsqd_http_address = nsqd_http_address
         self.depth_limit_at_nsq = depth_limit_at_nsq
         self.exception_logs_file = open(exception_logs_file, 'w')
+        self.heartbeat_interval = heartbeat_interval
 
     def _load_handler_fn(self, imp):
         self.log.info('Entered the _load_handler_fn')
@@ -227,6 +228,25 @@ class LogCollector(BaseScript):
                 log_files.append(log_f)
 
         return log_files
+        
+    def send_heartbeat_messege(self):
+    #Sends continouus heartbeats to a seperate topic in nsq
+        url = MPUB_URL % (self.nsqd_http_address, 'heartbeat')
+        heartbeat_number = 1
+        while True:
+            cur_ts = time.time()
+            s.close()
+            
+            heartbeat_payload = {'host': HOST,
+                    'name': self.name,
+                    'heartbeat_number': heartbeat_number,
+                    'timestamp': cur_ts
+                    }
+            self.log.info('Sending %d(th) heartbeat'%(heartbeat_number))
+            self.session.post(url, data=json.dumps(heartbeat_payload).encode(encoding='UTF-8',errors ='strict'),timeout=5.000)
+            heartbeat_number = heartbeat_number + 1
+            time.sleep(self.heartbeat_interval)
+
 
     def start(self):
         self.queue = Queue.Queue(maxsize=self.QUEUE_MAX_SIZE)
@@ -251,4 +271,9 @@ class LogCollector(BaseScript):
         th.start()
         self.log.info('Started checking depth at nsq')
 
+        th = Thread(target=self.send_heartbeat_messege)
+        th.daemon = True
+        th.start()
+        self.log.info('Started sending heartbeats to nsq topic')
+        
         th.join()
