@@ -10,7 +10,6 @@ import operator
 import datetime
 import traceback
 from threading import Thread
-
 import requests
 from pygtail import Pygtail
 from basescript import BaseScript
@@ -25,13 +24,12 @@ What if requests session expires?
 After a downtime of collector, pygtail is missing logs from rotational files
 '''
 
-class LogCollector(BaseScript):
+class LogCollector(object):
     DESC = 'Collects the log information and sends to NSQTopic'
 
     QUEUE_MAX_SIZE = 2000
     MAX_MSGS_TO_PUSH = 100
     MAX_SECONDS_TO_PUSH = 1
-
     TIME_WAIT = 0.25
     SLEEP_TIME = 1
     QUEUE_TIMEOUT = 1
@@ -40,7 +38,6 @@ class LogCollector(BaseScript):
 
     def __init__(self, log, args, _file, nsqtopic, nsqchannel, nsqd_http_address, depth_limit_at_nsq, exception_logs_file, heartbeat_interval):
         self.log = log
-        self.args = args
         self.file = _file
         self.nsqtopic = nsqtopic
         self.nsqchannel = nsqchannel
@@ -95,9 +92,8 @@ class LogCollector(BaseScript):
                 self._collect_log_lines(log_file)
             except (SystemExit, KeyboardInterrupt): raise
             except:
-                self.log.exception('Error during reading from log file')
-
-            time.sleep(self.TIME_WAIT)
+                #self.log.exception('Error during reading from log file')
+                time.sleep(self.TIME_WAIT)
 
     def validate_log_format(self, log):
         assert isinstance(log, dict)
@@ -127,7 +123,7 @@ class LogCollector(BaseScript):
                                     depth_val = channel.get('depth')
                         if not channels:
                             depth_val = record.get('depth')
-                        self.log.info('Present depth count at nsq %d' % (depth_val))
+                        #self.log.info('Present depth count at nsq %d' % (depth_val))
                         if depth_val > self.depth_limit_at_nsq:
                             self.has_nsq_limit_exceeded = True
                         else:
@@ -138,7 +134,7 @@ class LogCollector(BaseScript):
                 time.sleep(self.WAIT_TIME_TO_CHECK_DEPTH_AT_NSQ)
 
     def send_to_nsq(self):
-        self.log.info('Entered the send_to_nsq function')
+        #self.log.info('Entered the send_to_nsq function')
         msgs = []
         last_push_ts = time.time()
         url = MPUB_URL % (self.nsqd_http_address, self.nsqtopic)
@@ -228,20 +224,19 @@ class LogCollector(BaseScript):
                 log_files.append(log_f)
 
         return log_files
-        
+
     def send_heartbeat_messege(self):
     #Sends continouus heartbeats to a seperate topic in nsq
-        url = MPUB_URL % (self.nsqd_http_address, 'heartbeat')
+        url = MPUB_URL % (self.nsqd_http_address, 'heartbeat#ephemeral')
         heartbeat_number = 1
         while True:
             cur_ts = time.time()
             
             heartbeat_payload = {'host': HOST,
-                    'name': self.name,
                     'heartbeat_number': heartbeat_number,
                     'timestamp': cur_ts
                     }
-            self.log.info('Sending %d(th) heartbeat'%(heartbeat_number))
+            #self.log.info('Sending %d(th) heartbeat'%(heartbeat_number))
             self.session.post(url, data=json.dumps(heartbeat_payload).encode(encoding='UTF-8',errors ='strict'),timeout=5.000)
             heartbeat_number = heartbeat_number + 1
             time.sleep(self.heartbeat_interval)
@@ -249,9 +244,9 @@ class LogCollector(BaseScript):
 
     def start(self):
         self.queue = Queue.Queue(maxsize=self.QUEUE_MAX_SIZE)
-        self.log.info('Created queue object with max size %d' % (self.QUEUE_MAX_SIZE))
+        #self.log.info('Created queue object with max size %d' % (self.QUEUE_MAX_SIZE))
         self.session = requests.Session()
-        self.log.info('Created requests session object')
+        #self.log.info('Created requests session object')
         self.has_nsq_limit_exceeded = False
 
         log_files = self._prepare_log_files_list()
@@ -274,5 +269,5 @@ class LogCollector(BaseScript):
         th.daemon = True
         th.start()
         self.log.info('Started sending heartbeats to nsq topic')
-        
+
         th.join()

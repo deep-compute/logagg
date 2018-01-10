@@ -52,7 +52,7 @@ class LogForwarder(BaseScript):
         self.influxdb_user_name = influxdb_user_name
         self.influxdb_password = influxdb_password
         self.influxdb_database = influxdb_database
-        
+
     def start(self):
 
         # Establish connection to MongoDB to store the nsq messages
@@ -147,8 +147,8 @@ class LogForwarder(BaseScript):
                 django_metric = self.parse_django_metric(msg)
                 series.append(django_metric)
         return series
-        
-        
+
+
     def parse_nginx_metric(self, msg):
         event = msg.get('data', {})
         measurement = self.NGINX_METRIC
@@ -182,8 +182,8 @@ class LogForwarder(BaseScript):
                     }
             }
         return pointValues
-        
-        
+
+
     def parse_baseScript_metric(self, msg):
         time = msg.get('timestamp')
         event = msg.get('data').get('event')
@@ -204,8 +204,8 @@ class LogForwarder(BaseScript):
                 "tags": tags
                }
         return pointValues
-              
-                   
+
+
     def parse_django_metric(self, msg):
         time = msg.get('timestamp')
 	data = msg.get('data')
