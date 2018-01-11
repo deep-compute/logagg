@@ -1,6 +1,12 @@
 import re
 import json
 import datetime
+import socket
+
+HOST_NAME = socket.gethostname()
+CRAWLQUEUE_LOG_LEVELS = dict()
+CRAWLQUEUE_LOG_LEVELS['eror'] = 'error'
+CRAWLQUEUE_LOG_LEVELS['dbug'] = 'debug'
 
 #TODO
 '''
@@ -151,6 +157,54 @@ def basescript(line):
         id=log_id,
         type=type
     )
+
+def crawlqueue(line):
+    """
+    TODO
+    """
+    record = dict()
+    try:
+        log = json.loads(line)
+        log['timestamp'] = str(log.get('t', ''))
+        log['level'] = CRAWLQUEUE_LOG_LEVELS.get(log.get('lvl', ''), '')
+        log.pop('t')
+        log.pop('lvl')
+
+        # Code for metric parsing
+        if log.get('type') == 'metric':
+            event_dict = dict()
+            event_dict['req_fn'] = '_'.join(log.get('msg', '').strip().split(' '))
+            event_dict['host'] = HOST_NAME
+            event_dict['name'] = log.get('caller')
+            event_dict.update(log)
+            try:
+                event_dict.pop('id')
+                event_dict.pop('type')
+                event_dict.pop('msg')
+                event_dict.pop('level')
+                event_dict.pop('caller')
+            except KeyError:
+                pass
+
+            log['event'] = event_dict
+
+        else:
+            log['event'] = log.get('msg', '')
+            log.pop('msg')
+
+        record['timestamp'] = log.get('timestamp', '')
+        record['data'] = log
+
+        # Considering log id
+        if 'id' in log:
+            record['id'] = str(log.get('id', ''))
+
+    except ValueError:
+        record['timestamp'] = ''
+        record['event'] = line.strip()
+        record['data'] = dict()
+
+    return record
 
 def elasticsearch(line):
     """
