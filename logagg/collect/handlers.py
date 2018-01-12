@@ -146,6 +146,7 @@ def basescript(line):
         event_dict = _parse_metric_event(event)
         log['event'] = event_dict
         log['session_id'] = event_dict.get("g_session_id", "")
+        log['url_id'] = event_dict.get('g_url_id', '')
 
     log_id = log.get('id', '')
     if isinstance(log_id, unicode):
@@ -194,7 +195,7 @@ def crawlqueue(line):
 
         record['timestamp'] = log.get('timestamp', '')
         record['data'] = log
-
+        record['type'] = log.get('type', 'log')
         # Considering log id
         if 'id' in log:
             record['id'] = str(log.get('id', ''))
