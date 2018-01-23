@@ -1,31 +1,28 @@
 from basescript import BaseScript
-from collect.collector import LogCollector
-from forward.forwarder import LogForwarder
+from collector import LogCollector
+from forwarder import LogForwarder
 
 class LogaggCommand(BaseScript):
     DESC = 'Logagg command line tool'
 
     def collect(self):
         collector = LogCollector(
-                        self.log,
-                        self.args,
                         self.args.file,
                         self.args.nsqtopic,
-                        self.args.nsqchannel,
                         self.args.nsqd_http_address,
                         self.args.depth_limit_at_nsq,
-                        self.args.exception_logs_file,
-                        self.args.heartbeat_interval)
+                        self.args.heartbeat_interval,
+                        self.log)
         collector.start()
 
     def forward(self):
-        forwarder = LogForwarder(self.log,self.args,self.args.nsqtopic,\
-                        self.args.nsqchannel,self.args.nsqd_tcp_address,\
-                        self.args.mongodb_server_url,self.args.mongodb_port,\
-                        self.args.mongodb_user_name,self.args.mongodb_password,\
-                        self.args.mongodb_database,self.args.mongodb_collection,\
-                        self.args.influxdb_server_url,self.args.influxdb_port,\
-                        self.args.influxdb_user_name,self.args.influxdb_password,\
+        forwarder = LogForwarder(self.log, self.args,self.args.nsqtopic,\
+                        self.args.nsqchannel, self.args.nsqd_tcp_address,\
+                        self.args.mongodb_server_url, self.args.mongodb_port,\
+                        self.args.mongodb_user_name, self.args.mongodb_password,\
+                        self.args.mongodb_database, self.args.mongodb_collection,\
+                        self.args.influxdb_server_url, self.args.influxdb_port,\
+                        self.args.influxdb_user_name, self.args.influxdb_password,\
                         self.args.influxdb_database)
         forwarder.start()
 
