@@ -1,0 +1,26 @@
+language: python
+python:
+- '2.7'
+
+
+deploy:
+# pypitest
+- provider: pypi
+  distributions: "sdist bdist_wheel"
+  server: https://testpypi.python.org/pypi
+  user: deepcompute
+  password:
+    secure: B6gbjJnhx0P5Qm5bhoh9G4nzbf5Ef85/pWWiuwrZAjAFncu/2cOz+FZgaDuJv9T7RsO3TJ+ImJxaQTFfwCRtrxL8arVnMGoVIKXTneQ+7bYSzfH/sIrr8FdkMbE8y7f3PWw7k8wtZBN2DgVB/ToAv4ev+xaV2MzSUP2csEEoW7VyKZ95taIYkUbnRpFpnj+BRKAl53+aCoBz8B6JDrF2OfcEwF+5srVR+BN0f2/otvceU0NEZI9gj5tD6+q8G/6KvIYRgHnPkmLiVN8bb6C2FUqbexxm3Tsu7wWsLRSMnVhI1POBVvvd2s6lPJbhXq9UESA6YIEjqnKZqe/Z43cJScjbW3A12AlM1wxLWQ24WktPjsueRZ1aFAtN+MDTSWyZueao7ujHy8iExcubSx1PtlrYStxvfQHHdCz5dQytMwRbieuVckMOjTavXWiDYaIJeFcSaCi5pev+AHxXhMnVy7s758shjro33PWhiWqAX0TDI1IOu7La+Jqsp/++rW+uCPHlBhhZZfWihSxJvk1MQuWAskKpTqCQuUKM2oLtSYnOB24AdH+sk5pijR6EqAqXC1uNq8N2Wxwi7cyDTPO8Ah4Ij68/CTU/28j3zFX7dK9T7fDzHuyCA3bpca2Ma0aDAs7yH23qybhLlpJCKRreenDqEGsApbxhi8oCChXwl60=
+  on:
+    tags: false
+    branch: master
+  # pypi
+- provider: pypi
+  distributions: "sdist bdist_wheel"
+  server: https://upload.pypi.org/legacy/
+  user: deepcompute
+  password:
+    secure: B6gbjJnhx0P5Qm5bhoh9G4nzbf5Ef85/pWWiuwrZAjAFncu/2cOz+FZgaDuJv9T7RsO3TJ+ImJxaQTFfwCRtrxL8arVnMGoVIKXTneQ+7bYSzfH/sIrr8FdkMbE8y7f3PWw7k8wtZBN2DgVB/ToAv4ev+xaV2MzSUP2csEEoW7VyKZ95taIYkUbnRpFpnj+BRKAl53+aCoBz8B6JDrF2OfcEwF+5srVR+BN0f2/otvceU0NEZI9gj5tD6+q8G/6KvIYRgHnPkmLiVN8bb6C2FUqbexxm3Tsu7wWsLRSMnVhI1POBVvvd2s6lPJbhXq9UESA6YIEjqnKZqe/Z43cJScjbW3A12AlM1wxLWQ24WktPjsueRZ1aFAtN+MDTSWyZueao7ujHy8iExcubSx1PtlrYStxvfQHHdCz5dQytMwRbieuVckMOjTavXWiDYaIJeFcSaCi5pev+AHxXhMnVy7s758shjro33PWhiWqAX0TDI1IOu7La+Jqsp/++rW+uCPHlBhhZZfWihSxJvk1MQuWAskKpTqCQuUKM2oLtSYnOB24AdH+sk5pijR6EqAqXC1uNq8N2Wxwi7cyDTPO8Ah4Ij68/CTU/28j3zFX7dK9T7fDzHuyCA3bpca2Ma0aDAs7yH23qybhLlpJCKRreenDqEGsApbxhi8oCChXwl60=
+  on:
+    tags: true
+branch: master
