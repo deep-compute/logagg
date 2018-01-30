@@ -1,26 +1,40 @@
 language: python
 python:
 - '2.7'
-
-
+install:
+- pip install .
+script:
+- echo 'No Test'
 deploy:
-# pypitest
-- provider: pypi
-  distributions: "sdist bdist_wheel"
-  server: https://testpypi.python.org/pypi
-  user: deepcompute
-  password:
-    secure: B6gbjJnhx0P5Qm5bhoh9G4nzbf5Ef85/pWWiuwrZAjAFncu/2cOz+FZgaDuJv9T7RsO3TJ+ImJxaQTFfwCRtrxL8arVnMGoVIKXTneQ+7bYSzfH/sIrr8FdkMbE8y7f3PWw7k8wtZBN2DgVB/ToAv4ev+xaV2MzSUP2csEEoW7VyKZ95taIYkUbnRpFpnj+BRKAl53+aCoBz8B6JDrF2OfcEwF+5srVR+BN0f2/otvceU0NEZI9gj5tD6+q8G/6KvIYRgHnPkmLiVN8bb6C2FUqbexxm3Tsu7wWsLRSMnVhI1POBVvvd2s6lPJbhXq9UESA6YIEjqnKZqe/Z43cJScjbW3A12AlM1wxLWQ24WktPjsueRZ1aFAtN+MDTSWyZueao7ujHy8iExcubSx1PtlrYStxvfQHHdCz5dQytMwRbieuVckMOjTavXWiDYaIJeFcSaCi5pev+AHxXhMnVy7s758shjro33PWhiWqAX0TDI1IOu7La+Jqsp/++rW+uCPHlBhhZZfWihSxJvk1MQuWAskKpTqCQuUKM2oLtSYnOB24AdH+sk5pijR6EqAqXC1uNq8N2Wxwi7cyDTPO8Ah4Ij68/CTU/28j3zFX7dK9T7fDzHuyCA3bpca2Ma0aDAs7yH23qybhLlpJCKRreenDqEGsApbxhi8oCChXwl60=
-  on:
-    tags: false
-    branch: master
-  # pypi
-- provider: pypi
-  distributions: "sdist bdist_wheel"
-  server: https://upload.pypi.org/legacy/
-  user: deepcompute
-  password:
-    secure: B6gbjJnhx0P5Qm5bhoh9G4nzbf5Ef85/pWWiuwrZAjAFncu/2cOz+FZgaDuJv9T7RsO3TJ+ImJxaQTFfwCRtrxL8arVnMGoVIKXTneQ+7bYSzfH/sIrr8FdkMbE8y7f3PWw7k8wtZBN2DgVB/ToAv4ev+xaV2MzSUP2csEEoW7VyKZ95taIYkUbnRpFpnj+BRKAl53+aCoBz8B6JDrF2OfcEwF+5srVR+BN0f2/otvceU0NEZI9gj5tD6+q8G/6KvIYRgHnPkmLiVN8bb6C2FUqbexxm3Tsu7wWsLRSMnVhI1POBVvvd2s6lPJbhXq9UESA6YIEjqnKZqe/Z43cJScjbW3A12AlM1wxLWQ24WktPjsueRZ1aFAtN+MDTSWyZueao7ujHy8iExcubSx1PtlrYStxvfQHHdCz5dQytMwRbieuVckMOjTavXWiDYaIJeFcSaCi5pev+AHxXhMnVy7s758shjro33PWhiWqAX0TDI1IOu7La+Jqsp/++rW+uCPHlBhhZZfWihSxJvk1MQuWAskKpTqCQuUKM2oLtSYnOB24AdH+sk5pijR6EqAqXC1uNq8N2Wxwi7cyDTPO8Ah4Ij68/CTU/28j3zFX7dK9T7fDzHuyCA3bpca2Ma0aDAs7yH23qybhLlpJCKRreenDqEGsApbxhi8oCChXwl60=
-  on:
-    tags: true
-branch: master
+  - provider: releases
+    skip_cleanup: true
+    api-key:
+      secure: mbwcHmwfSBPOlsqyLNl0iWjln+5iuh7YHv/yTsR/hzKmZbvNToZ99Zq2yNPmOqmNy0yBxGASrAIkJlH37zD+son3LqXjausRO9B+X68pfvLUVydFznTPjbpg5hA5wNoqUSQF4IEr42Tll+bUjJ6XHpEJ8yvFEuaAWz/0xrZ7Yi0cEKFTRmJOikNfnEZup0kU00PyoHpC3YdTydy83Rbdr5SOyHHq20lIkre9tHjE0Z6ARyCjJck2S1Sma1t2wwGjTrUCZZ/RlO30EbdvnbLtwzAfEsfWj/LFjb7nWKaYasY12hKlXTpZmuphLXe6X8Ct1sPARNf4b/CYzv2mLRzxIQIktshRQ58fgaI/B5HNejwluqQ9xLdjf3jldr/U0m8OGDn0af4cAA/SelJ7wPrWUuGHoYjXqQODy5sPgU9QA2t5yQBGXkZHG0rDCf0+3TY9NA0lC7CCthxkkgaPHpg4aIzc757F2Zer62aHp/LxGxuCEvG1bSmHhj+yM/fPqnL39hS6ddJkQH8q70ph/FS7Ogjm2vuQussfKqP5xMhFF5heUjUUiBj0A6XeU+1skACo4NYI7vL5JyuKI275iynAAdtQrUXyQGKf/K0eQkhPo8nu+vFNYXrTDwu2qzzhHa7Iv/PFqIWImMxZO+pipde60OOleBKMGeJEs7sibMKFL98=
+    name: deeputil-0.1.2
+    tag_name: 0.1.2
+    on:
+        branch: master
+        repo: deep-compute/logagg
+    # test pypi
+  - provider: pypi
+    distributions: "sdist bdist_wheel"
+    server: https://testpypi.python.org/pypi
+    skip_cleanup: true
+    user: "deepcompute"
+    password:
+      secure: W+c1Sx4f+AEIYI/VgL3QHnz8muoJ1E7slCYUOdZgFRP4ogPi9qMbz6EXJfeSghIupntFyrlsIYhh/FhKiiJr8w8cNZoGGUagFmVcGiyIQ7PmG36Nq2qsD86dI3zT3droFjKPKZd2fzQV/9LBbn1VpkDCZpZzZ7LH6Wj2xvfpgdYvIwoNoVtfr2ep7pemGMyjnN5+SHTc886kZuztnlKxk9a/fD7jPMNuwoVWmq4tpCKslNIaDO1JeaR72uBGkPC3mwj8fRuJHA/8w6SzMe8vjWMrukNd+7BYT1K/td9IxRyQ9W3mcPSJSEkWbiD1UfCGCGKIgf9zKFRR+A4lUL/dN1OrP97TwhPfx41Pj3L9XFvP7ypqdTFAaco995qCHbYSZ4OqSwRPnnQYnQvyaiZtEA6rQ0MY7VdiqOEGiKSlAK78iodyeYtKN0U3wjgTu9QUZ5VAlYIglIYhogA0VrFlfQAO0G6WKMc7WcJYiNnLTC8mz/0sVulTyWMEfWXYGVlNAK6ApOMfaR204n1ZdxdCeuwMZFcZ0MYEpB3rcD9kc4ZBRbQOleCSkVC2mlyr1znuFT9DIw6M2hrZggF1bj38CGvTrmE1PDK1eXCPgmUAF4ORKNwxrEM1989IOw4vXaUwJVW5pPGbz73tHHBc6dUGLzu+GccflPsALhyIJzXK6BQ=
+    on:
+      branch: master
+      tags: false
+    # pypi
+  - provider: pypi
+    distributions: "sdist bdist_wheel"
+    skip_cleanup: true
+    user: "deepcompute"
+    password:
+      secure: W+c1Sx4f+AEIYI/VgL3QHnz8muoJ1E7slCYUOdZgFRP4ogPi9qMbz6EXJfeSghIupntFyrlsIYhh/FhKiiJr8w8cNZoGGUagFmVcGiyIQ7PmG36Nq2qsD86dI3zT3droFjKPKZd2fzQV/9LBbn1VpkDCZpZzZ7LH6Wj2xvfpgdYvIwoNoVtfr2ep7pemGMyjnN5+SHTc886kZuztnlKxk9a/fD7jPMNuwoVWmq4tpCKslNIaDO1JeaR72uBGkPC3mwj8fRuJHA/8w6SzMe8vjWMrukNd+7BYT1K/td9IxRyQ9W3mcPSJSEkWbiD1UfCGCGKIgf9zKFRR+A4lUL/dN1OrP97TwhPfx41Pj3L9XFvP7ypqdTFAaco995qCHbYSZ4OqSwRPnnQYnQvyaiZtEA6rQ0MY7VdiqOEGiKSlAK78iodyeYtKN0U3wjgTu9QUZ5VAlYIglIYhogA0VrFlfQAO0G6WKMc7WcJYiNnLTC8mz/0sVulTyWMEfWXYGVlNAK6ApOMfaR204n1ZdxdCeuwMZFcZ0MYEpB3rcD9kc4ZBRbQOleCSkVC2mlyr1znuFT9DIw6M2hrZggF1bj38CGvTrmE1PDK1eXCPgmUAF4ORKNwxrEM1989IOw4vXaUwJVW5pPGbz73tHHBc6dUGLzu+GccflPsALhyIJzXK6BQ=
+    on:
+      branch: master
+      # only when there is a release it will update pypi
+      tags: true
+
