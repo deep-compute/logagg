@@ -1,16 +1,19 @@
 from basescript import BaseScript
 from collector import LogCollector
 from forwarder import LogForwarder
+from nsq_sender import NSQSender
 
 class LogaggCommand(BaseScript):
     DESC = 'Logagg command line tool'
 
     def collect(self):
+        nsq_sender = NSQSender(self.args.nsqd_http_address,
+                        self.args.nsqtopic,
+                        self.args.depth_limit_at_nsq,
+                        self.log)
         collector = LogCollector(
                         self.args.file,
-                        self.args.nsqtopic,
-                        self.args.nsqd_http_address,
-                        self.args.depth_limit_at_nsq,
+                        nsq_sender,
                         self.args.heartbeat_interval,
                         self.log)
         collector.start()

@@ -148,13 +148,13 @@ def django(line):
                       u'user': u'root'},
           'timestamp': '2017-09-22T06:32:15'},
  'timestamp': '2017-09-22T06:32:15'}
-
-
+    
+    
         Case2:
-	[18/Sep/2017 05:40:36] ERROR [app.apps:78] failed to get the record, collection = Collection(Database(MongoClient(host=['localhost:27017'], document_class=dict, tz_aware=False, connect=True, serverselectiontimeoutms=3000), u'collection_cache'), u'function_dummy_version')
+    [18/Sep/2017 05:40:36] ERROR [app.apps:78] failed to get the record, collection = Collection(Database(MongoClient(host=['localhost:27017'], document_class=dict, tz_aware=False, connect=True, serverselectiontimeoutms=3000), u'collection_cache'), u'function_dummy_version')
     Traceback (most recent call last):
       File "/usr/local/lib/python2.7/dist-packages/mongo_cache/mongocache.py", line 70, in __getitem__
-	result = self.collection.find_one({"_id": key})
+    result = self.collection.find_one({"_id": key})
     OperationFailure: not authorized on collection_cache to execute command { find: "function", filter: { _id: "zydelig-cosine-20" }, limit: 1, singleBatch: true }
     '''
 #TODO we need to handle case2 logs
@@ -193,21 +193,21 @@ def _parse_metric_event(event):
     >>> event = "api,fn=functioname,host=localhost,name=Server,success=True c_invoked=1, \
 ...  t_duration_count=1,t_duration_lower=0.0259876251221,t_duration_mean=0.0259876251221, \
 ...  t_duration_sum=0.0259876251221,t_duration_upper=0.0259876251221 1494850222862"
-
+    
     >>> handlers._parse_metric_event(event)
 {'  t_duration_count': 1.0, 'name': 'Server', 'success': 'True', 'timestamp': 1494850222862.0, 't_duration_upper': 0.0259876251221, 'c_invoked': 1.0, 'req_fn': 'api', 'host': 'localhost', 't_duration_lower': 0.0259876251221, 't_duration_mean': 0.0259876251221, 'fn': 'functioname', '  t_duration_sum': 0.0259876251221}
     '''
     d = {}
     timestamp = event.split()[-1].strip()
     d['timestamp'] = timestamp
-
+    
     line_parts = event.split(',')
     for index, part in enumerate(line_parts, 1):
     # @part: "server_stats", "api"
         if '=' not in part:
             d['req_fn'] = part
             continue
-
+            
         # Handle cases like
         # "success=True c_inovked=1"
         # "name=server_stats g_cpu_idle_percent=100"
@@ -247,26 +247,26 @@ def basescript(line):
  'id': '',
  'timestamp': u'2017-05-15T12:10:22.862458Z',
  'type': 'log'}
-
-
->>> input_line2 = '{ \
-...         "timestamp": "2017-06-14T15:36:09.183493Z", \
-...         "event": "No precomputed trie found. Creating ...", \
-...         "_": {"ln": 432, "file": "server.py", \
-...         "name": "__main__", "fn": "function"}, "level": "debug" \
-...                 }'
->>> output_line2 = handlers.basescript(input_line2)
->>> pprint.pprint(output_line2)
-{'data': {u'_': {u'file': u'server.py',
-                 u'fn': u'function',
-                 u'ln': 432,
-                 u'name': u'__main__'},
-          u'event': u'No precomputed trie found. Creating ...',
-          u'level': u'debug',
-          u'timestamp': u'2017-06-14T15:36:09.183493Z'},
- 'id': '',
- 'timestamp': u'2017-06-14T15:36:09.183493Z',
- 'type': 'log'}
+    
+    
+    >>> input_line2 = '{ \
+    ...         "timestamp": "2017-06-14T15:36:09.183493Z", \
+    ...         "event": "No precomputed trie found. Creating ...", \
+    ...         "_": {"ln": 432, "file": "server.py", \
+    ...         "name": "__main__", "fn": "function"}, "level": "debug" \
+    ...                 }'
+    >>> output_line2 = handlers.basescript(input_line2)
+    >>> pprint.pprint(output_line2)
+    {'data': {u'_': {u'file': u'server.py',
+                     u'fn': u'function',
+                     u'ln': 432,
+                     u'name': u'__main__'},
+              u'event': u'No precomputed trie found. Creating ...',
+              u'level': u'debug',
+              u'timestamp': u'2017-06-14T15:36:09.183493Z'},
+     'id': '',
+     'timestamp': u'2017-06-14T15:36:09.183493Z',
+     'type': 'log'}
     '''
 
     log = json.loads(line)
