@@ -1,7 +1,7 @@
-import requests
 import time
 import traceback
 
+import requests
 from deeputil import keeprunning
 
 class NSQSender(object):
