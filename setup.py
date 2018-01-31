@@ -3,7 +3,7 @@ from setuptools import find_packages
 
 setup(
     name="logagg",
-    version="0.1",
+    version="0.2",
     description="Collect all the logs from server and parses"
                 "it to get common schema for all the logs and"
                 "stores at common location `MongoDB`.",
@@ -11,7 +11,7 @@ setup(
     author="Deep Compute, LLC",
     author_email="contact@deepcompute.com",
     url="https://github.com/deep-compute/logagg",
-    license='GPL',
+    license='MIT',
     dependency_links=[
         "https://github.com/deep-compute/pygtail/tarball/master/#egg=pygtail-0.6.1",
     ],
@@ -35,6 +35,7 @@ setup(
         "Operating System :: OS Independent",
         "License :: OSI Approved :: GNU General Public License (GPL)"
     ],
+    test_suite='test.suite_maker',
     entry_points={
         "console_scripts": [
             "logagg = logagg:main",

@@ -4,14 +4,14 @@ python:
 install:
 - pip install .
 script:
-- echo 'No Test'
+- python setup.py test
 deploy:
   - provider: releases
     skip_cleanup: true
     api-key:
       secure: mbwcHmwfSBPOlsqyLNl0iWjln+5iuh7YHv/yTsR/hzKmZbvNToZ99Zq2yNPmOqmNy0yBxGASrAIkJlH37zD+son3LqXjausRO9B+X68pfvLUVydFznTPjbpg5hA5wNoqUSQF4IEr42Tll+bUjJ6XHpEJ8yvFEuaAWz/0xrZ7Yi0cEKFTRmJOikNfnEZup0kU00PyoHpC3YdTydy83Rbdr5SOyHHq20lIkre9tHjE0Z6ARyCjJck2S1Sma1t2wwGjTrUCZZ/RlO30EbdvnbLtwzAfEsfWj/LFjb7nWKaYasY12hKlXTpZmuphLXe6X8Ct1sPARNf4b/CYzv2mLRzxIQIktshRQ58fgaI/B5HNejwluqQ9xLdjf3jldr/U0m8OGDn0af4cAA/SelJ7wPrWUuGHoYjXqQODy5sPgU9QA2t5yQBGXkZHG0rDCf0+3TY9NA0lC7CCthxkkgaPHpg4aIzc757F2Zer62aHp/LxGxuCEvG1bSmHhj+yM/fPqnL39hS6ddJkQH8q70ph/FS7Ogjm2vuQussfKqP5xMhFF5heUjUUiBj0A6XeU+1skACo4NYI7vL5JyuKI275iynAAdtQrUXyQGKf/K0eQkhPo8nu+vFNYXrTDwu2qzzhHa7Iv/PFqIWImMxZO+pipde60OOleBKMGeJEs7sibMKFL98=
-    name: deeputil-0.1.2
-    tag_name: 0.1.2
+    name: logagg-0.2
+    tag_name: 0.2
     on:
         branch: master
         repo: deep-compute/logagg
