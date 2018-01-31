@@ -1,30 +1,31 @@
 from basescript import BaseScript
-from collect.collector import LogCollector
-from forward.forwarder import LogForwarder
+from collector import LogCollector
+from forwarder import LogForwarder
+from nsq_sender import NSQSender
 
 class LogaggCommand(BaseScript):
     DESC = 'Logagg command line tool'
 
     def collect(self):
-        collector = LogCollector(
-                        self.log,
-                        self.args,
-                        self.args.file,
+        nsq_sender = NSQSender(self.args.nsqd_http_address,
                         self.args.nsqtopic,
-                        self.args.nsqchannel,
-                        self.args.nsqd_http_address,
                         self.args.depth_limit_at_nsq,
-                        self.args.exception_logs_file)
+                        self.log)
+        collector = LogCollector(
+                        self.args.file,
+                        nsq_sender,
+                        self.args.heartbeat_interval,
+                        self.log)
         collector.start()
 
     def forward(self):
-        forwarder = LogForwarder(self.log,self.args,self.args.nsqtopic,\
-                        self.args.nsqchannel,self.args.nsqd_tcp_address,\
-                        self.args.mongodb_server_url,self.args.mongodb_port,\
-                        self.args.mongodb_user_name,self.args.mongodb_password,\
-                        self.args.mongodb_database,self.args.mongodb_collection,\
-                        self.args.influxdb_server_url,self.args.influxdb_port,\
-                        self.args.influxdb_user_name,self.args.influxdb_password,\
+        forwarder = LogForwarder(self.log, self.args,self.args.nsqtopic,\
+                        self.args.nsqchannel, self.args.nsqd_tcp_address,\
+                        self.args.mongodb_server_url, self.args.mongodb_port,\
+                        self.args.mongodb_user_name, self.args.mongodb_password,\
+                        self.args.mongodb_database, self.args.mongodb_collection,\
+                        self.args.influxdb_server_url, self.args.influxdb_port,\
+                        self.args.influxdb_user_name, self.args.influxdb_password,\
                         self.args.influxdb_database)
         forwarder.start()
 
@@ -45,6 +46,8 @@ class LogaggCommand(BaseScript):
             help='To limit the depth at nsq channel')
         collect_cmd.add_argument('--exception-logs-file',
                 default='/var/log/logagg/exception_logs.log', help='If collector fails to publish messages to nsq, will write the logs to a file')
+        collect_cmd.add_argument('--heartbeat-interval',
+                type=int,default=30, help='Send heartbeats to a nsqTopic "heartbeat" to know which hosts are running logagg')
 
         forward_cmd = subcommands.add_parser('forward', help='Collects all the messages from nsq and pushes to storage engine')
         forward_cmd.set_defaults(func=self.forward)

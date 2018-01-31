@@ -1,4 +1,5 @@
-from setuptools import setup, find_packages
+from setuptools import setup
+from setuptools import find_packages
 
 setup(
     name="logagg",
@@ -20,6 +21,7 @@ setup(
         "nsq-py",
         "pygtail==0.6.1",
         "influxdb",
+        "deeputil",
     ],
     package_dir={'logagg': 'logagg'},
     packages=find_packages('.'),
