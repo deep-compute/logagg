@@ -31,7 +31,7 @@ setup(
         "Programming Language :: Python",
         "Programming Language :: Python :: 2.7",
         "Operating System :: OS Independent",
-        "License :: OSI Approved :: GNU General Public License (GPL)"
+        "License :: OSI Approved :: MIT License",
     ],
     test_suite='test.suite_maker',
     entry_points={

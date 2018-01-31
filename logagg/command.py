@@ -1,7 +1,7 @@
 from basescript import BaseScript
 from collector import LogCollector
 from forwarder import LogForwarder
-from nsq_sender import NSQSender
+from nsqsender import NSQSender
 
 class LogaggCommand(BaseScript):
     DESC = 'Logagg command line tool'
