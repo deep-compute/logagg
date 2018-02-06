@@ -180,10 +180,10 @@ class LogCollector(object):
             is_max_time_elapsed = time_since_last_push >= self.MAX_SECONDS_TO_PUSH
             
             should_push = len(msgs) > 0 and (is_max_time_elapsed or have_enough_msgs)
-            self.log.info('desciding wheather to push', should_push=should_push)
+            self.log.debug('desciding wheather to push', should_push=should_push)
             
         try:
-            self.log.info('trying to push to nsq', msgs_length=len(msgs))
+            self.log.debug('trying to push to nsq', msgs_length=len(msgs))
             self.nsq_sender.handle_logs(msgs)
             self.confirm_success(msgs)
             self.log.info('pushed to nsq', msgs_length=len(msgs))

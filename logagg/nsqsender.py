@@ -20,7 +20,7 @@ class NSQSender(object):
         self._ensure_topic()
 
     def _log_exception(self, __fn__):
-        self.log.exception('Error during run Continuing ...' , fn=__fn__.func_name, \
+        self.log.exception('Error during run Continuing ...' , fn=__fn__.func_name,
                             tb=repr(traceback.format_exc()))
 
     @keeprunning(NSQ_READY_CHECK_INTERVAL, exit_on_success=True, on_error=_log_exception)
