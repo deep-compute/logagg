@@ -7,6 +7,7 @@ __pycache__/
 *.so
 
 # Distribution / packaging
+*.pyc
 .Python
 env/
 build/
@@ -100,5 +101,9 @@ ENV/
 # mypy
 .mypy_cache/
 
-#.date
-*.dat
+# gedit backup files
+*.*~
+*.bak
+
+#swp files
+*.swp

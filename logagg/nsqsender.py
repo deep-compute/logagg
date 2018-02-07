@@ -1,7 +1,7 @@
-import requests
 import time
 import traceback
 
+import requests
 from deeputil import keeprunning
 
 class NSQSender(object):
@@ -19,13 +19,18 @@ class NSQSender(object):
         self.session = requests.Session()
         self._ensure_topic()
 
+    def _log_exception(self, __fn__):
+        self.log.exception('Error during run Continuing ...' , fn=__fn__.func_name,
+                            tb=repr(traceback.format_exc()))
+
+    @keeprunning(NSQ_READY_CHECK_INTERVAL, exit_on_success=True, on_error=_log_exception)
     def _ensure_topic(self):
         u = 'http://%s/topic/create?topic=%s' % (self.nsqd_http_address, self.topic_name)
         try:
             self.session.post(u)
         except requests.exceptions.RequestException as e:
-            self.log.exception('Could not create topic=', e, topic=self.topic_name)
-            sys.exit(1)
+            self.log.debug('Could not create topic, retrying....', topic=self.topic_name)
+            raise
         self.log.info('Created topic ', topic=self.topic_name)
 
     def _is_ready(self, topic_name):
@@ -66,9 +71,6 @@ class NSQSender(object):
                 s = self.NSQ_READY_CHECK_INTERVAL
                 time.sleep(s)
 
-    def _log_exception(self, __fn__):
-        self.log.exception('During run of %s. exp=%r, Continuing ...' % (__fn__.func_name, traceback.format_exc()))
-
     @keeprunning(NSQ_READY_CHECK_INTERVAL, exit_on_success=True, on_error=_log_exception)
     def _send_messages(self, msgs, topic_name):
         if not isinstance(msgs, list):
@@ -80,10 +82,10 @@ class NSQSender(object):
             self.session.post(url, data=data, timeout=5) # TODO What if session expires?
         except (SystemExit, KeyboardInterrupt): raise
         except requests.exceptions.RequestException as e:
-            self.log.exception('Exception in _send_messages=', e)
-        self.log.debug('nsq push done nmsgs=%d nbytes=%d', len(msgs), len(data))
+            raise
+        self.log.debug('nsq push done ', nmsgs=len(msgs), nbytes=len(data))
 
-    def handle_log(self, msgs):
+    def handle_logs(self, msgs):
         self._is_ready(topic_name=self.topic_name)
         self._send_messages(msgs, topic_name=self.topic_name)
 

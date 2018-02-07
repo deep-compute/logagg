@@ -1,0 +1,7 @@
+version: "2.0"
+services:
+    logagg:
+        image: deepcompute/logagg:1.0
+        volumes:
+            - /home/deepcompute/Desktop/log_samples/:/tmp/
+        command: ["logagg", "--log-level", "INFO", "collect", "/tmp/access_new.log:logagg.handlers.nginx_access", "/tmp/basescript_new.log:logagg.handlers.basescript", "/tmp/not_a_file.log:logagg.handlers.django", "logs_and_metrics", "--nsqchannel", "test_channel", "--heartbeat-interval", "30", "--nsqd-http-address", "192.168.0.58:4151"]

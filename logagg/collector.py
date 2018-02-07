@@ -73,11 +73,12 @@ class LogCollector(object):
         module = __import__(module_name)
         fn = operator.attrgetter(fn_name)(module)
         
-        self.log.info('Loaded handler %s' %str((module_name, fn_name, imp)))
+        self.log.info('Loaded handler ', module=module_name, fn=fn_name,)
         return fn
 
     def _log_exception(self, __fn__):
-        self.log.exception('During run of %s. exp=%r, Continuing ...' % (__fn__.func_name, traceback.format_exc()))
+        self.log.exception('Error during run Continuing ...', \
+                            fn=__fn__.func_name, tb=repr(traceback.format_exc()))
 
     @keeprunning(LOG_FILE_POLL_INTERVAL, on_error=_log_exception)
     def collect_log_lines(self, log_file):
@@ -179,11 +180,11 @@ class LogCollector(object):
             is_max_time_elapsed = time_since_last_push >= self.MAX_SECONDS_TO_PUSH
             
             should_push = len(msgs) > 0 and (is_max_time_elapsed or have_enough_msgs)
-            self.log.info('desciding wheather to push', should_push=should_push)
+            self.log.debug('desciding wheather to push', should_push=should_push)
             
         try:
-            self.log.info('trying to push to nsq', msgs_length=len(msgs))
-            self.nsq_sender.handle_log(msgs)
+            self.log.debug('trying to push to nsq', msgs_length=len(msgs))
+            self.nsq_sender.handle_logs(msgs)
             self.confirm_success(msgs)
             self.log.info('pushed to nsq', msgs_length=len(msgs))
             msgs = []
