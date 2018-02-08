@@ -12,8 +12,8 @@ import traceback
 from threading import Thread
 
 from deeputil import Dummy, AttrDict, keeprunning
+from logagg.pygtail import Pygtail
 
-from pygtail import Pygtail
 # TODO
 '''
 After a downtime of collector, pygtail is missing logs from rotational files
