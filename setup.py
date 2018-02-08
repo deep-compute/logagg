@@ -3,16 +3,16 @@ from setuptools import find_packages
 
 setup(
     name="logagg",
-    version="0.2.2",
+    version="0.2.3",
     description="logs aggregation framework",
     keywords="logagg",
     author="Deep Compute, LLC",
     author_email="contact@deepcompute.com",
     url="https://github.com/deep-compute/logagg",
     license='MIT',
-#    dependency_links=[
-#        "https://github.com/deep-compute/pygtail/tarball/master/#egg=pygtail-0.6.1",
-#    ],
+    dependency_links=[
+        "https://github.com/deep-compute/pygtail/tarball/master/#egg=pygtail-0.6.1",
+    ],
     install_requires=[
         "basescript==0.1.13",
         "pymongo==3.6.0",

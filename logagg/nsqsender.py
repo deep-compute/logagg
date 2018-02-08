@@ -52,7 +52,7 @@ class NSQSender(object):
                 topics = [t for t in topics if t['topic_name'] == topic_name]
                 
                 if not topics:
-                    raise Exception('Topic missing', topic=topic_name)
+                    raise Exception('Topic missing at nsq..')
                 
                 topic = topics[0]
                 depth = topic['depth']

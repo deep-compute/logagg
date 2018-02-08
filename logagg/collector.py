@@ -12,7 +12,7 @@ import traceback
 from threading import Thread
 
 from deeputil import Dummy, AttrDict, keeprunning
-from logagg.pygtail import Pygtail
+from pygtail import Pygtail
 
 # TODO
 '''
