@@ -1,7 +1,0 @@
-version: "2.0"
-services:
-    logagg:
-        image: deepcompute/logagg:1.0
-        volumes:
-            - /var/log/:/var/log/
-
