@@ -17,30 +17,35 @@ class NSQSender(object):
         self.log = log
         
         self.session = requests.Session()
-        self._ensure_topic()
-
+        self._ensure_topic(self.topic_name)
+        self._ensure_topic(self.HEARTBEAT_TOPIC)
     def _log_exception(self, __fn__):
         self.log.exception('Error during run Continuing ...' , fn=__fn__.func_name,
                             tb=repr(traceback.format_exc()))
 
     @keeprunning(NSQ_READY_CHECK_INTERVAL, exit_on_success=True, on_error=_log_exception)
-    def _ensure_topic(self):
-        u = 'http://%s/topic/create?topic=%s' % (self.nsqd_http_address, self.topic_name)
+    def _ensure_topic(self, topic_name):
+        u = 'http://%s/topic/create?topic=%s' % (self.nsqd_http_address, topic_name)
         try:
             self.session.post(u)
         except requests.exceptions.RequestException as e:
-            self.log.debug('Could not create topic, retrying....', topic=self.topic_name)
+            self.log.debug('Could not create topic, retrying....', topic=topic_name)
             raise
-        self.log.info('Created topic ', topic=self.topic_name)
+        self.log.info('Created topic ', topic=topic_name)
 
     def _is_ready(self, topic_name):
         '''
         Is NSQ running and have space to receive messages?
         '''
         url = 'http://%s/stats?format=json&topic=%s' % (self.nsqd_http_address, topic_name)
+        #Cheacking for ephmeral channels
+        if '#' in topic_name:
+            topic_name, tag =topic_name.split("#", 1)
+        
         while 1:
             try:
                 data = self.session.get(url).json()
+                self.log.info('topic data', data=data)
                 '''
                 data = {u'start_time': 1516164866, u'version': u'1.0.0-compat', \
                         u'health': u'OK', u'topics': [{u'message_count': 19019, \
@@ -57,7 +62,7 @@ class NSQSender(object):
                 topic = topics[0]
                 depth = topic['depth']
                 depth += sum(c.get('depth', 0) for c in topic['channels'])
-                self.log.info('nsq depth check', depth=depth, max_depth=self.nsq_max_depth)
+                self.log.info('nsq depth check', topic=topic_name, depth=depth, max_depth=self.nsq_max_depth)
                 
                 if depth < self.nsq_max_depth:
                     break
@@ -66,7 +71,8 @@ class NSQSender(object):
                 
             except (SystemExit, KeyboardInterrupt): raise
             except requests.exceptions.RequestException as e:
-                self.log.exception('Exception wait_till_nsq_ready=', e)
+                self.log.exception('Exception wait_till_nsq_ready=',
+                                    tb=repr(traceback.format_exc()))
             finally:
                 s = self.NSQ_READY_CHECK_INTERVAL
                 time.sleep(s)
@@ -90,5 +96,6 @@ class NSQSender(object):
         self._send_messages(msgs, topic_name=self.topic_name)
 
     def handle_heartbeat(self, msgs):
+        self._is_ready(topic_name=self.HEARTBEAT_TOPIC)
         self._send_messages(msgs, topic_name=self.HEARTBEAT_TOPIC)
 
