@@ -61,7 +61,7 @@ class NSQSender(object):
                 topic = topics[0]
                 depth = topic['depth']
                 depth += sum(c.get('depth', 0) for c in topic['channels'])
-                self.log.info('nsq depth check', topic=topic_name, depth=depth, max_depth=self.nsq_max_depth)
+                self.log.debug('nsq depth check', topic=topic_name, depth=depth, max_depth=self.nsq_max_depth)
                 
                 if depth < self.nsq_max_depth:
                     break

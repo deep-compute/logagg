@@ -188,7 +188,7 @@ class LogCollector(object):
             self.log.debug('trying to push to nsq', msgs_length=len(msgs))
             self.nsq_sender.handle_logs(msgs)
             self.confirm_success(msgs)
-            self.log.info('pushed to nsq', msgs_length=len(msgs))
+            self.log.debug('pushed to nsq', msgs_length=len(msgs))
             msgs = []
             state.last_push_ts = time.time()
         except (SystemExit, KeyboardInterrupt): raise
