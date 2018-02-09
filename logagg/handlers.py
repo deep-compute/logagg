@@ -184,30 +184,22 @@ def django(line):
 def basescript(line):
     '''
     >>> import pprint
-    >>> input_line1 = '{ "influx_metric": true, "level": "info", "timestamp": "2017-05-15T12:10:22.862458Z", "event": "api,fn=functioname,host=localhost,name=Server,success=True c_invoked=1, t_duration_count=1,t_duration_lower=0.0259876251221,t_duration_mean=0.0259876251221, t_duration_sum=0.0259876251221,t_duration_upper=0.0259876251221 1494850222862" }'
-    >>> output_line1 = basescript(input_line1)
+    >>> input_line = '{"level": "warning", "timestamp": "2018-02-07T06:37:00.297610Z", "event": "exited via keyboard interrupt", "type": "log", "id": "20180207T063700_4d03fe800bd111e89ecb96000007bc65", "_": {"ln": 58, "file": "/usr/local/lib/python2.7/dist-packages/basescript/basescript.py", "name": "basescript.basescript", "fn": "start"}}'
+    >>> output_line1 = basescript(input_line)
     >>> pprint.pprint(output_line1)
-    {'data': {u'event': u'api,fn=functioname,host=localhost,name=Server,success=True c_invoked=1, t_duration_count=1,t_duration_lower=0.0259876251221,t_duration_mean=0.0259876251221, t_duration_sum=0.0259876251221,t_duration_upper=0.0259876251221 1494850222862',
-              u'influx_metric': True,
-              u'level': u'info',
-              u'timestamp': u'2017-05-15T12:10:22.862458Z'},
-     'id': '',
-     'timestamp': u'2017-05-15T12:10:22.862458Z',
-     'type': 'log'}
-    
-    >>> input_line2 = '{"timestamp": "2017-06-14T15:36:09.183493Z", "event": "No precomputed trie found. Creating ...", "_": {"ln": 432, "file": "server.py", "name": "__main__", "fn": "function"}, "level": "debug"}'
-    >>> output_line2 = basescript(input_line2)
-    >>> pprint.pprint(output_line2)
-    {'data': {u'_': {u'file': u'server.py',
-                     u'fn': u'function',
-                     u'ln': 432,
-                     u'name': u'__main__'},
-              u'event': u'No precomputed trie found. Creating ...',
-              u'level': u'debug',
-              u'timestamp': u'2017-06-14T15:36:09.183493Z'},
-     'id': '',
-     'timestamp': u'2017-06-14T15:36:09.183493Z',
-     'type': 'log'}
+    {'data': {u'_': {u'file': u'/usr/local/lib/python2.7/dist-packages/basescript/basescript.py',
+                     u'fn': u'start',
+                     u'ln': 58,
+                     u'name': u'basescript.basescript'},
+              u'event': u'exited via keyboard interrupt',
+              u'id': u'20180207T063700_4d03fe800bd111e89ecb96000007bc65',
+              u'level': u'warning',
+              u'timestamp': u'2018-02-07T06:37:00.297610Z',
+              u'type': u'log'},
+     'id': u'20180207T063700_4d03fe800bd111e89ecb96000007bc65',
+     'level': u'warning',
+     'timestamp': u'2018-02-07T06:37:00.297610Z',
+     'type': u'log'}
     '''
 
     log = json.loads(line)
