@@ -29,7 +29,7 @@ class NSQSender(object):
         try:
             self.session.post(u)
         except requests.exceptions.RequestException as e:
-            self.log.debug('Could not create topic, retrying....', topic=topic_name)
+            self.log.debug('Could not create/find topic, retrying....', topic=topic_name)
             raise
         self.log.info('Created topic ', topic=topic_name)
 
@@ -45,7 +45,6 @@ class NSQSender(object):
         while 1:
             try:
                 data = self.session.get(url).json()
-                self.log.info('topic data', data=data)
                 '''
                 data = {u'start_time': 1516164866, u'version': u'1.0.0-compat', \
                         u'health': u'OK', u'topics': [{u'message_count': 19019, \

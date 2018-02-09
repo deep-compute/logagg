@@ -103,6 +103,7 @@ ENV/
 # gedit backup files
 *.*~
 *.bak
+*~
 
 #swp files
 *.swp

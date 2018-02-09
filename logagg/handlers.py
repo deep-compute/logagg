@@ -181,45 +181,6 @@ def django(line):
             data=line
         )
 
-def _parse_metric_event(event):
-    '''
-    >>> event = "api,fn=functioname,host=localhost,name=Server,success=True c_invoked=1, t_duration_count=1,t_duration_lower=0.0259876251221,t_duration_mean=0.0259876251221, t_duration_sum=0.0259876251221,t_duration_upper=0.0259876251221 1494850222862"
-    
-    >>> _parse_metric_event(event)
-    {' t_duration_sum': 0.0259876251221, ' t_duration_count': 1.0, 'name': 'Server', 'success': 'True', 'timestamp': 1494850222862.0, 't_duration_upper': 0.0259876251221, 'c_invoked': 1.0, 'req_fn': 'api', 'host': 'localhost', 't_duration_lower': 0.0259876251221, 't_duration_mean': 0.0259876251221, 'fn': 'functioname'}
-    '''
-    d = {}
-    timestamp = event.split()[-1].strip()
-    d['timestamp'] = timestamp
-    
-    line_parts = event.split(',')
-    for index, part in enumerate(line_parts, 1):
-    # @part: "server_stats", "api"
-        if '=' not in part:
-            d['req_fn'] = part
-            continue
-            
-        # Handle cases like
-        # "success=True c_inovked=1"
-        # "name=server_stats g_cpu_idle_percent=100"
-        if part.count('=') == 2:
-           val_parts = part.split(' ')
-           key, val = val_parts[0].split('=')
-           d[key] = val
-           key, val = val_parts[1].split('=')
-           d[key] = val
-           continue
-
-        # @part: "host=localhost"
-        key, val = part.split('=')
-        if index == len(line_parts):
-           val = val.split(' ')[0] # last part, ex: g_mem_percent=0.0 1500029864225
-
-        d[key] = val
-
-    d = convert_str2int(d)
-    return d
-
 def basescript(line):
     '''
     >>> import pprint
@@ -250,23 +211,13 @@ def basescript(line):
     '''
 
     log = json.loads(line)
-    type = log.get('type', 'log')
-    if type == "metric":
-        event = log.get('event', ' ')
-        event_dict = _parse_metric_event(event)
-        log['event'] = event_dict
-        log['session_id'] = event_dict.get("g_session_id", "")
-        log['url_id'] = event_dict.get('g_url_id', '')
-
-    log_id = log.get('id', '')
-    if isinstance(log_id, unicode):
-        log_id = str(log_id)
 
     return dict(
-        timestamp=log.get('timestamp', ' '),
+        timestamp=log['timestamp'],
         data=log,
-        id=log_id,
-        type=type
+        id=log['id'],
+        type=log['type'],
+        level=log['level'],
     )
 
 def elasticsearch(line):

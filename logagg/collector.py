@@ -73,7 +73,7 @@ class LogCollector(object):
         module = __import__(module_name)
         fn = operator.attrgetter(fn_name)(module)
         
-        self.log.info('Loaded handler ', module=module_name, fn=fn_name,)
+        self.log.info('Loaded handler ', module=module_name, handler=fn_name,)
         return fn
 
     def _log_exception(self, __fn__):
@@ -97,6 +97,7 @@ class LogCollector(object):
                     raw=line,
                     timestamp=datetime.datetime.utcnow().isoformat(),
                     type='log',
+                    level='debug',
                   )
             
             try:
@@ -119,15 +120,16 @@ class LogCollector(object):
             time.sleep(t)
 
     def validate_log_format(self, log):
+        # FIXME: test level, type also
+        # FIXME: test value of level, type, timestamp
         assert isinstance(log, dict)
-        assert isinstance(log['id'], str)
+        assert isinstance(log['id'], basestring)
         assert isinstance(log['data'], dict)
         assert isinstance(log['timestamp'], basestring)
         assert isinstance(log['file'], str)
         assert isinstance(log['host'], str)
         assert isinstance(log['handler'], str)
         assert isinstance(log['raw'], str)
-
 
     def _get_msgs_from_queue(self, msgs, msgs_nbytes, timeout):
         read_from_q = False
@@ -199,26 +201,27 @@ class LogCollector(object):
             freader.update_offset_file(msg['line_info'])
 
     @keeprunning(SCAN_FPATTERNS_INTERVAL, on_error=_log_exception)
-    def _scan_fpatterns(self):
+    def _scan_fpatterns(self, state):
         '''
-        fpaths = '~/Desktop/log_samples/access_new.log:logagg.handlers.nginx_access'
-        fpattern = '~/Desktop/log_samples/access_new.log'
+        fpaths = '/var/log/nginx/access.log:logagg.handlers.nginx_access'
+        fpattern = '/var/log/nginx/access.log'
         '''
         for f in self.fpaths:
             fpattern, handler = f.split(':', 1)
             # TODO code for scanning fpatterns for the files not yet present goes here
             fpaths = glob.glob(fpattern)
             # Load handler_fn if not in list
-            if handler not in self.handlers:
+            if fpaths and fpaths[0] not in state.files_tracked:
                 try:
-                        handler_fn = self.handlers.get(handler,
-                                        self._load_handler_fn(handler))
-                        self.handlers[handler] = handler_fn
+                    handler_fn = self.handlers.get(handler,
+                                  self._load_handler_fn(handler))
+                    self.handlers[handler] = handler_fn
                 except (SystemExit, KeyboardInterrupt): raise
                 except (ImportError, AttributeError):
                     sys.exit(-1)
                 # Start a thread for every file
                 for fpath in fpaths:
+                    self.log.info('found log file..', log_file=fpath)
                     log_f = dict(fpath=fpath, fpattern=fpattern,
                                     handler=handler, handler_fn=handler_fn)
                     log_key = (fpath, fpattern, handler)
@@ -226,6 +229,7 @@ class LogCollector(object):
                         #FIXME There is no existing thread tracking this log file. Start one
                         self.log_reader_threads[log_key] = _start_daemon_thread(self.collect_log_lines, (log_f,))
                         self.log.info('Started collect_log_lines thread ', log_key=log_key)
+                    state.files_tracked.append(fpath)
         time.sleep(self.SCAN_FPATTERNS_INTERVAL)
 
     @keeprunning(HEARTBEAT_RESTART_INTERVAL, on_error=_log_exception)
@@ -240,7 +244,8 @@ class LogCollector(object):
         time.sleep(self.heartbeat_interval)
 
     def start(self):
-        _start_daemon_thread(self._scan_fpatterns)
+        state = AttrDict(files_tracked=list())
+        _start_daemon_thread(self._scan_fpatterns, (state,))
         
         state = AttrDict(last_push_ts=time.time())
         _start_daemon_thread(self.send_to_nsq, (state,))
