@@ -32,8 +32,8 @@ class LogForwarder(BaseScript):
     INFLUXDB_RECORDS = []
 
     def __init__(self, log, args, nsqtopic, nsqchannel, nsqd_tcp_address, mongodb_server_url,\
-            mongodb_port, mongodb_user_name, mongodb_password, mongodb_database, mongodb_collection,\
-            influxdb_server_url, influxdb_port, influxdb_user_name, influxdb_password, influxdb_database):
+            mongodb_port, mongodb_user_name, mongodb_password, mongodb_database, mongodb_collection,):
+#            influxdb_server_url, influxdb_port, influxdb_user_name, influxdb_password, influxdb_database):
 
         self.log = log
         self.args = args
@@ -47,11 +47,11 @@ class LogForwarder(BaseScript):
         self.mongodb_database = mongodb_database
         self.mongodb_collection = mongodb_collection
 
-        self.influxdb_server_url = influxdb_server_url
-        self.influxdb_port = influxdb_port
-        self.influxdb_user_name = influxdb_user_name
-        self.influxdb_password = influxdb_password
-        self.influxdb_database = influxdb_database
+#        self.influxdb_server_url = influxdb_server_url
+#        self.influxdb_port = influxdb_port
+#        self.influxdb_user_name = influxdb_user_name
+#        self.influxdb_password = influxdb_password
+#        self.influxdb_database = influxdb_database
 
     def start(self):
 
@@ -65,12 +65,12 @@ class LogForwarder(BaseScript):
         self.mongo_coll = self.mongo_database[self.mongodb_collection]
         self.log.info('Created collection: %s for MongoDB database %s' % (self.mongo_coll, self.mongo_database))
 
-        # Establish connection to influxdb to store metrics
-        self.influxdb_client = InfluxDBClient(self.influxdb_server_url, self.influxdb_port, self.influxdb_user_name,
-                    self.influxdb_password, self.influxdb_database)
-        self.log.info('Established connection to InfluxDB server: %s' % (self.influxdb_server_url))
-        self.influxdb_database = self.influxdb_client.create_database(self.influxdb_database)
-        self.log.info('Created database: %s at InfluxDB' % (self.influxdb_database))
+#        # Establish connection to influxdb to store metrics
+#        self.influxdb_client = InfluxDBClient(self.influxdb_server_url, self.influxdb_port, self.influxdb_user_name,
+#                    self.influxdb_password, self.influxdb_database)
+#        self.log.info('Established connection to InfluxDB server: %s' % (self.influxdb_server_url))
+#        self.influxdb_database = self.influxdb_client.create_database(self.influxdb_database)
+#        self.log.info('Created database: %s at InfluxDB' % (self.influxdb_database))
 
         # Initialize a queue to carry messages between the
         # producer (nsq_reader) and the consumer (read_from_q)
@@ -258,10 +258,10 @@ class LogForwarder(BaseScript):
         except pymongo.errors.BulkWriteError as bwe:
             self.log.exception('Write to mongo failed. Details: %s' % bwe.details)
 
-        self.log.info('Parsing of metrics started')
-        records = self.parse_msg_to_send_influxdb(msgs_list)
-        self.INFLUXDB_RECORDS.extend(records)
-        self.log.info('Parsing of metrics is completed')
+#        self.log.info('Parsing of metrics started')
+#        records = self.parse_msg_to_send_influxdb(msgs_list)
+#        self.INFLUXDB_RECORDS.extend(records)
+#        self.log.info('Parsing of metrics is completed')
 
         if self.INFLUXDB_RECORDS and len(self.INFLUXDB_RECORDS) >= 200:
             self.INFLUXDB_RECORDS = [record for record in self.INFLUXDB_RECORDS if record]

@@ -24,10 +24,10 @@ class LogaggCommand(BaseScript):
                                  self.args.nsqchannel, self.args.nsqd_tcp_address,
                                  self.args.mongodb_server_url, self.args.mongodb_port,
                                  self.args.mongodb_user_name, self.args.mongodb_password,
-                                 self.args.mongodb_database, self.args.mongodb_collection,
-                                 self.args.influxdb_server_url, self.args.influxdb_port,
-                                 self.args.influxdb_user_name, self.args.influxdb_password,
-                                 self.args.influxdb_database)
+                                 self.args.mongodb_database, self.args.mongodb_collection)
+#                                 self.args.influxdb_server_url, self.args.influxdb_port,
+#                                 self.args.influxdb_user_name, self.args.influxdb_password,
+#                                 self.args.influxdb_database)
         forwarder.start()
 
     def define_subcommands(self, subcommands):
@@ -56,6 +56,7 @@ class LogaggCommand(BaseScript):
         forward_cmd = subcommands.add_parser('forward', help='Collects all the messages from nsq and pushes to storage engine')
         forward_cmd.set_defaults(func=self.forward)
         forward_cmd.add_argument('--nsqtopic', help='NSQ topic name to read messages from. Ex: logs_and_metrics')
+        forward_cmd.add_argument('--nsqchannel', help='NSQ channel name to read messages from. Ex: logs_and_metrics')
         forward_cmd.add_argument('--nsqd-tcp-address',
                                  default='localhost:4150', help='nsqd tcp address where we get the messages')
 
