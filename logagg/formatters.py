@@ -2,6 +2,16 @@ import re
 import json
 import datetime
 
+class RawLog(dict): pass
+
+#FIXME: cannot do both returns .. should it?
+def docker(line):
+    log = json.loads(json.loads(line)['msg'])
+    if 'formatter' in log['extra']:
+        return RawLog(dict(formatter=log['extra']['formatter'],
+                            line=log['message']))
+    return dict(timestamp=log.get('timestamp'), data=log)
+
 def nginx_access(line):
     '''
     >>> import pprint
@@ -98,7 +108,7 @@ def convert_str2int(data):
     '''
     >>> event = {"event": "api,fn=functioname,host=localhost,name=Server,success=True c_invoked=1, t_duration_count=1,t_duration_lower=0.0259876251221,t_duration_mean=0.0259876251221, t_duration_sum=0.0259876251221,t_duration_upper=0.0259876251221 1494850222862"}
     >>> convert_str2int(event)
-    {'event': 'api,fn=functioname,host=localhost,name=Server,success=True c_invoked=1, t_duration_count=1,t_duration_lower=0.0259876251221,t_duration_mean=0.0259876251221, t_duration_sum=0.0259876251221,t_duration_upper=0.0259876251221 1494850222862'}
+    {'event': 'api,fn=funct ioname,host=localhost,name=Server,success=True c_invoked=1, t_duration_count=1,t_duration_lower=0.0259876251221,t_duration_mean=0.0259876251221, t_duration_sum=0.0259876251221,t_duration_upper=0.0259876251221 1494850222862'}
     '''
     for key, val in data.items():
         if isinstance(val, basestring):
@@ -118,11 +128,7 @@ def django(line):
               'timestamp': '2017-08-23T11:35:25'},
      'timestamp': '2017-08-23T11:35:25'}
 
-    >>> input_line2 = '[22/Sep/2017 06:32:15] INFO [app.function:6022] \
-                    {"UUID": "c47f3530-9f5f-11e7-a559-917d011459f7", "timestamp":1506061932546, \
-                    "misc": {"status": 200, "ready_state": 4, "end_time_ms": 1506061932546, "url": "/api/function?", \
-                    "start_time_ms": 1506061932113, "response_length": 31, "status_message": "OK", "request_time_ms": 433}, \
-                    "user": "root", "host_url": "localhost:8888", "message": "ajax success"}'
+    >>> input_line2 = '[22/Sep/2017 06:32:15] INFO [app.function:6022] {"UUID": "c47f3530-9f5f-11e7-a559-917d011459f7", "timestamp":1506061932546, "misc": {"status": 200, "ready_state": 4, "end_time_ms": 1506061932546, "url": "/api/function?", "start_time_ms": 1506061932113, "response_length": 31, "status_message": "OK", "request_time_ms": 433}, "user": "root", "host_url": "localhost:8888", "message": "ajax success"}'
     >>> output_line2 = django(input_line2)
     >>> pprint.pprint(output_line2)
     {'data': {'loglevel': 'INFO',
@@ -142,7 +148,7 @@ def django(line):
                           u'user': u'root'},
               'timestamp': '2017-09-22T06:32:15'},
      'timestamp': '2017-09-22T06:32:15'}
-    
+
         Case2:
     [18/Sep/2017 05:40:36] ERROR [app.apps:78] failed to get the record, collection = Collection(Database(MongoClient(host=['localhost:27017'], document_class=dict, tz_aware=False, connect=True, serverselectiontimeoutms=3000), u'collection_cache'), u'function_dummy_version')
     Traceback (most recent call last):

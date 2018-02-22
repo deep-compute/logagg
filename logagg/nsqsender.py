@@ -1,8 +1,8 @@
 import time
-import traceback
 
 import requests
 from deeputil import keeprunning
+from logagg import util
 
 class NSQSender(object):
 
@@ -10,7 +10,7 @@ class NSQSender(object):
     HEARTBEAT_TOPIC = 'Heartbeat#ephemeral' # Topic name at which heartbeat is to be sent
     MPUB_URL = 'http://%s/mpub?topic=%s'    # Url to post msgs to NSQ
 
-    def __init__(self, http_loc, nsq_topic, nsq_max_depth, log):
+    def __init__(self, http_loc, nsq_topic, nsq_max_depth, log=util.DUMMY_LOGGER):
         self.nsqd_http_address = http_loc
         self.topic_name = nsq_topic
         self.nsq_max_depth = nsq_max_depth
@@ -19,11 +19,10 @@ class NSQSender(object):
         self.session = requests.Session()
         self._ensure_topic(self.topic_name)
         self._ensure_topic(self.HEARTBEAT_TOPIC)
-    def _log_exception(self, __fn__):
-        self.log.exception('Error during run Continuing ...' , fn=__fn__.func_name,
-                            tb=repr(traceback.format_exc()))
 
-    @keeprunning(NSQ_READY_CHECK_INTERVAL, exit_on_success=True, on_error=_log_exception)
+    @keeprunning(NSQ_READY_CHECK_INTERVAL,
+                 exit_on_success=True,
+                 on_error=util.log_exception)
     def _ensure_topic(self, topic_name):
         u = 'http://%s/topic/create?topic=%s' % (self.nsqd_http_address, topic_name)
         try:
@@ -76,7 +75,9 @@ class NSQSender(object):
                 s = self.NSQ_READY_CHECK_INTERVAL
                 time.sleep(s)
 
-    @keeprunning(NSQ_READY_CHECK_INTERVAL, exit_on_success=True, on_error=_log_exception)
+    @keeprunning(NSQ_READY_CHECK_INTERVAL,
+                 exit_on_success=True,
+                 on_error=util.log_exception)
     def _send_messages(self, msgs, topic_name):
         if not isinstance(msgs, list):
             data = msgs

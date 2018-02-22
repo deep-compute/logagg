@@ -6,12 +6,12 @@ import glob
 import uuid
 import Queue
 import socket
-import operator
 import datetime
-import traceback
-from threading import Thread
+from operator import attrgetter
 
-from deeputil import Dummy, AttrDict, keeprunning
+from logagg import util
+from logagg.formatters import RawLog
+from deeputil import AttrDict, keeprunning
 from pygtail import Pygtail
 
 # TODO
@@ -19,20 +19,12 @@ from pygtail import Pygtail
 After a downtime of collector, pygtail is missing logs from rotational files
 '''
 
-DUMMY_LOGGER = Dummy()
-
-def _start_daemon_thread(target, args=()):
-    th = Thread(target=target, args=args)
-    th.daemon = True
-    th.start()
-    return th
-
 class LogCollector(object):
     '''
     Instantiate LogCollector class with an object
-    
+
     >>> from logagg import LogCollector
-    >>> lc = LogCollector('~/Desktop/log_samples/access_new.log:logagg.handlers.nginx_access', \
+    >>> lc = LogCollector('~/Desktop/log_samples/access_new.log:logagg.formatters.nginx_access', \
                                 'test_topic', 'localhost:4151', 10000, 30)
     >>> lc.log
     <deeputil.misc.Dummy object at 0x7fc902bb7c10>
@@ -42,7 +34,7 @@ class LogCollector(object):
     10000
     '''
     DESC = 'Collects the log information and sends to NSQTopic'
-    
+
     QUEUE_MAX_SIZE = 2000           # Maximum number of messages in in-mem queue
     NBYTES_TO_SEND = 5000000        # Number of bytes from in-mem queue minimally required to push
     MAX_SECONDS_TO_PUSH = 1         # Wait till this much time elapses before pushing
@@ -54,7 +46,7 @@ class LogCollector(object):
     HEARTBEAT_RESTART_INTERVAL = 30 # Wait time if heartbeat sending stops
 
     def __init__(self, fpaths, nsq_sender,
-                heartbeat_interval, log=DUMMY_LOGGER):
+                heartbeat_interval, log=util.DUMMY_LOGGER):
         self.fpaths = fpaths
         self.nsq_sender = nsq_sender
         self.heartbeat_interval = heartbeat_interval
@@ -62,30 +54,16 @@ class LogCollector(object):
 
         # Log fpath to thread mapping
         self.log_reader_threads = {}
-        # Handle name to handler fn obj map
-        self.handlers = {}
+        # Handle name to formatter fn obj map
+        self.formatters = {}
         self.queue = Queue.Queue(maxsize=self.QUEUE_MAX_SIZE)
 
-    def _load_handler_fn(self, imp):
-        self.log.debug('Loading handler', name=imp)
-        
-        module_name, fn_name = imp.split('.', 1)
-        module = __import__(module_name)
-        fn = operator.attrgetter(fn_name)(module)
-        
-        self.log.info('Loaded handler ', module=module_name, handler=fn_name,)
-        return fn
-
-    def _log_exception(self, __fn__):
-        self.log.exception('Error during run Continuing ...', \
-                            fn=__fn__.func_name, tb=repr(traceback.format_exc()))
-
-    @keeprunning(LOG_FILE_POLL_INTERVAL, on_error=_log_exception)
+    @keeprunning(LOG_FILE_POLL_INTERVAL, on_error=util.log_exception)
     def collect_log_lines(self, log_file):
         L = log_file
         fpath = L['fpath']
         self.log.debug('Tracking log file for log lines', fpath=fpath)
-        
+
         freader = Pygtail(fpath)
         for line_info in freader:
             line = line_info['line'][:-1] # remove new line char at the end
@@ -93,15 +71,20 @@ class LogCollector(object):
                     id=uuid.uuid1().hex,
                     file=fpath,
                     host=self.HOST,
-                    handler=L['handler'],
+                    formatter=L['formatter'],
                     raw=line,
                     timestamp=datetime.datetime.utcnow().isoformat(),
                     type='log',
                     level='debug',
                   )
-            
+
             try:
-                _log = L['handler_fn'](line)
+                _log = L['formatter_fn'](line)
+
+                if isinstance(_log, RawLog):
+                    formatter, _log = _log['formatter'], _log['line']
+                    _log = util.load_object(formatter)(_log)
+
                 log.update(_log)
                 self.validate_log_format(log)
             except (SystemExit, KeyboardInterrupt) as e: raise
@@ -109,11 +92,11 @@ class LogCollector(object):
                 self.log.exception('Error during handling log line', log=log)
                 log['error'] = True
                 log['error_tb'] = traceback.format_exc()
-                
-            self.queue.put(dict(log=json.dumps(log), 
+
+            self.queue.put(dict(log=json.dumps(log),
                                 freader=freader, line_info=line_info))
             self.log.debug("TALLY: PUT into self.queue")
-            
+
         while not freader.is_fully_acknowledged():
             t = self.PYGTAIL_ACK_WAIT_TIME
             self.log.debug('Waiting for pygtail to fully ack', wait_time=t)
@@ -128,22 +111,22 @@ class LogCollector(object):
         assert isinstance(log['timestamp'], basestring)
         assert isinstance(log['file'], str)
         assert isinstance(log['host'], str)
-        assert isinstance(log['handler'], str)
+        assert isinstance(log['formatter'], str)
         assert isinstance(log['raw'], str)
 
     def _get_msgs_from_queue(self, msgs, msgs_nbytes, timeout):
         read_from_q = False
         ts = time.time()
-        
+
         while 1:
             try:
                 msg = self.queue.get(block=True, timeout=self.QUEUE_READ_TIMEOUT)
                 read_from_q = True
                 self.log.debug("TALLY: GET from self.queue")
-                
+
                 msgs.append(msg)
                 msgs_nbytes += len(msg['log'])
-                
+
                 if msgs_nbytes > self.NBYTES_TO_SEND: # FIXME: class level const
                     self.log.debug('Msg bytes read from in-queue got exceeded')
                     break
@@ -163,27 +146,27 @@ class LogCollector(object):
         return msgs, msgs_nbytes, read_from_q
 
 
-    @keeprunning(0, on_error=_log_exception) # FIXME: what wait time var here?
+    @keeprunning(0, on_error=util.log_exception) # FIXME: what wait time var here?
     def send_to_nsq(self, state):
         self.log.debug('send_to_nsq')
         msgs = []
         msgs_nbytes = 0
         should_push = False
-        
+
         while not should_push:
             self.log.debug('should_push', is_true=should_push)
             cur_ts = time.time()
             time_since_last_push = cur_ts - state.last_push_ts
-            
+
             msgs, msgs_nbytes, read_from_q = self._get_msgs_from_queue(msgs, msgs_nbytes,
                         self.MAX_SECONDS_TO_PUSH)
-                        
+
             have_enough_msgs = msgs_nbytes >= self.NBYTES_TO_SEND
             is_max_time_elapsed = time_since_last_push >= self.MAX_SECONDS_TO_PUSH
-            
+
             should_push = len(msgs) > 0 and (is_max_time_elapsed or have_enough_msgs)
             self.log.debug('desciding wheather to push', should_push=should_push)
-            
+
         try:
             self.log.debug('trying to push to nsq', msgs_length=len(msgs))
             self.nsq_sender.handle_logs(msgs)
@@ -200,39 +183,42 @@ class LogCollector(object):
             freader = msg['freader']
             freader.update_offset_file(msg['line_info'])
 
-    @keeprunning(SCAN_FPATTERNS_INTERVAL, on_error=_log_exception)
+    @keeprunning(SCAN_FPATTERNS_INTERVAL, on_error=util.log_exception)
     def _scan_fpatterns(self, state):
         '''
-        fpaths = '/var/log/nginx/access.log:logagg.handlers.nginx_access'
+        fpaths = 'file=/var/log/nginx/access.log:formatter=logagg.formatters.nginx_access'
         fpattern = '/var/log/nginx/access.log'
         '''
         for f in self.fpaths:
-            fpattern, handler = f.split(':', 1)
+            fpattern, formatter =(a.split('=')[1] for a in f.split(':', 1))
+            self.log.debug('scan_fpatterns', fpattern=fpattern, formatter=formatter)
             # TODO code for scanning fpatterns for the files not yet present goes here
             fpaths = glob.glob(fpattern)
-            # Load handler_fn if not in list
+            # Load formatter_fn if not in list
             if fpaths and fpaths[0] not in state.files_tracked:
                 try:
-                    handler_fn = self.handlers.get(handler,
-                                  self._load_handler_fn(handler))
-                    self.handlers[handler] = handler_fn
+                    formatter_fn = self.formatters.get(formatter,
+                                  util.load_object(formatter))
+                    self.log.info('found_formatter_fn', fn=formatter)
+                    self.formatters[formatter] = formatter_fn
                 except (SystemExit, KeyboardInterrupt): raise
                 except (ImportError, AttributeError):
+                    self.log.exception('formatter_fn_not_found', fn=formatter)
                     sys.exit(-1)
                 # Start a thread for every file
                 for fpath in fpaths:
-                    self.log.info('found log file..', log_file=fpath)
+                    self.log.info('found_log_file', log_file=fpath)
                     log_f = dict(fpath=fpath, fpattern=fpattern,
-                                    handler=handler, handler_fn=handler_fn)
-                    log_key = (fpath, fpattern, handler)
+                                    formatter=formatter, formatter_fn=formatter_fn)
+                    log_key = (fpath, fpattern, formatter)
                     if log_key not in self.log_reader_threads:
-                        #FIXME There is no existing thread tracking this log file. Start one
-                        self.log_reader_threads[log_key] = _start_daemon_thread(self.collect_log_lines, (log_f,))
+                        # There is no existing thread tracking this log file. Start one
+                        self.log_reader_threads[log_key] = util.start_daemon_thread(self.collect_log_lines, (log_f,))
                         self.log.info('Started collect_log_lines thread ', log_key=log_key)
                     state.files_tracked.append(fpath)
         time.sleep(self.SCAN_FPATTERNS_INTERVAL)
 
-    @keeprunning(HEARTBEAT_RESTART_INTERVAL, on_error=_log_exception)
+    @keeprunning(HEARTBEAT_RESTART_INTERVAL, on_error=util.log_exception)
     def send_heartbeat(self, state):
         # Sends continuous heartbeats to a seperate topic in nsq
         heartbeat_payload = {'host': self.HOST,
@@ -245,11 +231,11 @@ class LogCollector(object):
 
     def start(self):
         state = AttrDict(files_tracked=list())
-        _start_daemon_thread(self._scan_fpatterns, (state,))
-        
+        util.start_daemon_thread(self._scan_fpatterns, (state,))
+
         state = AttrDict(last_push_ts=time.time())
-        _start_daemon_thread(self.send_to_nsq, (state,))
-        
+        util.start_daemon_thread(self.send_to_nsq, (state,))
+
         state = AttrDict(heartbeat_number=0)
-        _start_daemon_thread(self.send_heartbeat, (state,)).join()
+        util.start_daemon_thread(self.send_heartbeat, (state,)).join()
 
