@@ -108,7 +108,7 @@ def convert_str2int(data):
     '''
     >>> event = {"event": "api,fn=functioname,host=localhost,name=Server,success=True c_invoked=1, t_duration_count=1,t_duration_lower=0.0259876251221,t_duration_mean=0.0259876251221, t_duration_sum=0.0259876251221,t_duration_upper=0.0259876251221 1494850222862"}
     >>> convert_str2int(event)
-    {'event': 'api,fn=funct ioname,host=localhost,name=Server,success=True c_invoked=1, t_duration_count=1,t_duration_lower=0.0259876251221,t_duration_mean=0.0259876251221, t_duration_sum=0.0259876251221,t_duration_upper=0.0259876251221 1494850222862'}
+    {'event': 'api,fn=functioname,host=localhost,name=Server,success=True c_invoked=1, t_duration_count=1,t_duration_lower=0.0259876251221,t_duration_mean=0.0259876251221, t_duration_sum=0.0259876251221,t_duration_upper=0.0259876251221 1494850222862'}
     '''
     for key, val in data.items():
         if isinstance(val, basestring):
