@@ -8,6 +8,7 @@ import Queue
 import socket
 import datetime
 from operator import attrgetter
+import traceback
 
 from logagg import util
 from logagg.formatters import RawLog
@@ -44,6 +45,8 @@ class LogCollector(object):
     SCAN_FPATTERNS_INTERVAL = 30    # How often to scan filesystem for files matching fpatterns
     HOST = socket.gethostname()
     HEARTBEAT_RESTART_INTERVAL = 30 # Wait time if heartbeat sending stops
+    #TODO check for structure in validate_log_format
+    STRUCT = ('id', 'timestamp', 'file', 'host', 'formatter', 'raw', 'type', 'level')
 
     def __init__(self, fpaths, nsq_sender,
                 heartbeat_interval, log=util.DUMMY_LOGGER):
@@ -82,8 +85,9 @@ class LogCollector(object):
                 _log = L['formatter_fn'](line)
 
                 if isinstance(_log, RawLog):
-                    formatter, _log = _log['formatter'], _log['line']
-                    _log = util.load_object(formatter)(_log)
+                    formatter, raw_log = _log['formatter'], _log['raw']
+                    log.update(_log)
+                    _log = util.load_object(formatter)(raw_log)
 
                 log.update(_log)
                 self.validate_log_format(log)
@@ -110,9 +114,11 @@ class LogCollector(object):
         assert isinstance(log['data'], dict)
         assert isinstance(log['timestamp'], basestring)
         assert isinstance(log['file'], str)
-        assert isinstance(log['host'], str)
-        assert isinstance(log['formatter'], str)
-        assert isinstance(log['raw'], str)
+        assert isinstance(log['host'], basestring)
+        assert isinstance(log['formatter'], basestring)
+        assert isinstance(log['raw'], basestring)
+        assert isinstance(log['type'], basestring)
+        assert isinstance(log['level'], basestring)
 
     def _get_msgs_from_queue(self, msgs, msgs_nbytes, timeout):
         read_from_q = False

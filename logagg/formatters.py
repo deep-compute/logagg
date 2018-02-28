@@ -5,11 +5,15 @@ import datetime
 class RawLog(dict): pass
 
 #FIXME: cannot do both returns .. should it?
-def docker(line):
+def docker_log_file_driver(line):
     log = json.loads(json.loads(line)['msg'])
-    if 'formatter' in log['extra']:
-        return RawLog(dict(formatter=log['extra']['formatter'],
-                            line=log['message']))
+    if 'formatter' in log.get('extra'):
+        return RawLog(dict(formatter=log.get('extra').get('formatter'),
+                            raw=log.get('message'),
+                            host=log.get('host'),
+                            timestamp=log.get('timestamp'),
+                            )
+                        )
     return dict(timestamp=log.get('timestamp'), data=log)
 
 def nginx_access(line):
@@ -58,7 +62,6 @@ def nginx_access(line):
      'timestamp': '2018-01-05T09:14:46.415000'}
     '''
 #TODO Handle nginx error logs
-
     log = json.loads(line)
     timestamp_iso = datetime.datetime.utcfromtimestamp(float(log['timestamp'])).isoformat()
     log.update({'timestamp':timestamp_iso})

@@ -56,7 +56,7 @@ class MongoDBForwarder(BaseForwarder):
         #TODO: We need to do this by using iteration object.
         for msg in msgs:
             msg_body = json.loads(msg.body.decode(encoding='utf-8',errors='strict'))
-            msg_body['_id'] = msg_body.pop('id')
+            msg_body['id'] = msg_body.pop('id')
             msgs_list.append(msg_body)
 
         try:
