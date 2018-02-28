@@ -2,6 +2,20 @@ import re
 import json
 import datetime
 
+class RawLog(dict): pass
+
+#FIXME: cannot do both returns .. should it?
+def docker_log_file_driver(line):
+    log = json.loads(json.loads(line)['msg'])
+    if 'formatter' in log.get('extra'):
+        return RawLog(dict(formatter=log.get('extra').get('formatter'),
+                            raw=log.get('message'),
+                            host=log.get('host'),
+                            timestamp=log.get('timestamp'),
+                            )
+                        )
+    return dict(timestamp=log.get('timestamp'), data=log)
+
 def nginx_access(line):
     '''
     >>> import pprint
@@ -48,7 +62,6 @@ def nginx_access(line):
      'timestamp': '2018-01-05T09:14:46.415000'}
     '''
 #TODO Handle nginx error logs
-
     log = json.loads(line)
     timestamp_iso = datetime.datetime.utcfromtimestamp(float(log['timestamp'])).isoformat()
     log.update({'timestamp':timestamp_iso})
@@ -118,11 +131,7 @@ def django(line):
               'timestamp': '2017-08-23T11:35:25'},
      'timestamp': '2017-08-23T11:35:25'}
 
-    >>> input_line2 = '[22/Sep/2017 06:32:15] INFO [app.function:6022] \
-                    {"UUID": "c47f3530-9f5f-11e7-a559-917d011459f7", "timestamp":1506061932546, \
-                    "misc": {"status": 200, "ready_state": 4, "end_time_ms": 1506061932546, "url": "/api/function?", \
-                    "start_time_ms": 1506061932113, "response_length": 31, "status_message": "OK", "request_time_ms": 433}, \
-                    "user": "root", "host_url": "localhost:8888", "message": "ajax success"}'
+    >>> input_line2 = '[22/Sep/2017 06:32:15] INFO [app.function:6022] {"UUID": "c47f3530-9f5f-11e7-a559-917d011459f7", "timestamp":1506061932546, "misc": {"status": 200, "ready_state": 4, "end_time_ms": 1506061932546, "url": "/api/function?", "start_time_ms": 1506061932113, "response_length": 31, "status_message": "OK", "request_time_ms": 433}, "user": "root", "host_url": "localhost:8888", "message": "ajax success"}'
     >>> output_line2 = django(input_line2)
     >>> pprint.pprint(output_line2)
     {'data': {'loglevel': 'INFO',
@@ -142,7 +151,7 @@ def django(line):
                           u'user': u'root'},
               'timestamp': '2017-09-22T06:32:15'},
      'timestamp': '2017-09-22T06:32:15'}
-    
+
         Case2:
     [18/Sep/2017 05:40:36] ERROR [app.apps:78] failed to get the record, collection = Collection(Database(MongoClient(host=['localhost:27017'], document_class=dict, tz_aware=False, connect=True, serverselectiontimeoutms=3000), u'collection_cache'), u'function_dummy_version')
     Traceback (most recent call last):
@@ -181,92 +190,35 @@ def django(line):
             data=line
         )
 
-def _parse_metric_event(event):
-    '''
-    >>> event = "api,fn=functioname,host=localhost,name=Server,success=True c_invoked=1, t_duration_count=1,t_duration_lower=0.0259876251221,t_duration_mean=0.0259876251221, t_duration_sum=0.0259876251221,t_duration_upper=0.0259876251221 1494850222862"
-    
-    >>> _parse_metric_event(event)
-    {' t_duration_sum': 0.0259876251221, ' t_duration_count': 1.0, 'name': 'Server', 'success': 'True', 'timestamp': 1494850222862.0, 't_duration_upper': 0.0259876251221, 'c_invoked': 1.0, 'req_fn': 'api', 'host': 'localhost', 't_duration_lower': 0.0259876251221, 't_duration_mean': 0.0259876251221, 'fn': 'functioname'}
-    '''
-    d = {}
-    timestamp = event.split()[-1].strip()
-    d['timestamp'] = timestamp
-    
-    line_parts = event.split(',')
-    for index, part in enumerate(line_parts, 1):
-    # @part: "server_stats", "api"
-        if '=' not in part:
-            d['req_fn'] = part
-            continue
-            
-        # Handle cases like
-        # "success=True c_inovked=1"
-        # "name=server_stats g_cpu_idle_percent=100"
-        if part.count('=') == 2:
-           val_parts = part.split(' ')
-           key, val = val_parts[0].split('=')
-           d[key] = val
-           key, val = val_parts[1].split('=')
-           d[key] = val
-           continue
-
-        # @part: "host=localhost"
-        key, val = part.split('=')
-        if index == len(line_parts):
-           val = val.split(' ')[0] # last part, ex: g_mem_percent=0.0 1500029864225
-
-        d[key] = val
-
-    d = convert_str2int(d)
-    return d
-
 def basescript(line):
     '''
     >>> import pprint
-    >>> input_line1 = '{ "influx_metric": true, "level": "info", "timestamp": "2017-05-15T12:10:22.862458Z", "event": "api,fn=functioname,host=localhost,name=Server,success=True c_invoked=1, t_duration_count=1,t_duration_lower=0.0259876251221,t_duration_mean=0.0259876251221, t_duration_sum=0.0259876251221,t_duration_upper=0.0259876251221 1494850222862" }'
-    >>> output_line1 = basescript(input_line1)
+    >>> input_line = '{"level": "warning", "timestamp": "2018-02-07T06:37:00.297610Z", "event": "exited via keyboard interrupt", "type": "log", "id": "20180207T063700_4d03fe800bd111e89ecb96000007bc65", "_": {"ln": 58, "file": "/usr/local/lib/python2.7/dist-packages/basescript/basescript.py", "name": "basescript.basescript", "fn": "start"}}'
+    >>> output_line1 = basescript(input_line)
     >>> pprint.pprint(output_line1)
-    {'data': {u'event': u'api,fn=functioname,host=localhost,name=Server,success=True c_invoked=1, t_duration_count=1,t_duration_lower=0.0259876251221,t_duration_mean=0.0259876251221, t_duration_sum=0.0259876251221,t_duration_upper=0.0259876251221 1494850222862',
-              u'influx_metric': True,
-              u'level': u'info',
-              u'timestamp': u'2017-05-15T12:10:22.862458Z'},
-     'id': '',
-     'timestamp': u'2017-05-15T12:10:22.862458Z',
-     'type': 'log'}
-    
-    >>> input_line2 = '{"timestamp": "2017-06-14T15:36:09.183493Z", "event": "No precomputed trie found. Creating ...", "_": {"ln": 432, "file": "server.py", "name": "__main__", "fn": "function"}, "level": "debug"}'
-    >>> output_line2 = basescript(input_line2)
-    >>> pprint.pprint(output_line2)
-    {'data': {u'_': {u'file': u'server.py',
-                     u'fn': u'function',
-                     u'ln': 432,
-                     u'name': u'__main__'},
-              u'event': u'No precomputed trie found. Creating ...',
-              u'level': u'debug',
-              u'timestamp': u'2017-06-14T15:36:09.183493Z'},
-     'id': '',
-     'timestamp': u'2017-06-14T15:36:09.183493Z',
-     'type': 'log'}
+    {'data': {u'_': {u'file': u'/usr/local/lib/python2.7/dist-packages/basescript/basescript.py',
+                     u'fn': u'start',
+                     u'ln': 58,
+                     u'name': u'basescript.basescript'},
+              u'event': u'exited via keyboard interrupt',
+              u'id': u'20180207T063700_4d03fe800bd111e89ecb96000007bc65',
+              u'level': u'warning',
+              u'timestamp': u'2018-02-07T06:37:00.297610Z',
+              u'type': u'log'},
+     'id': u'20180207T063700_4d03fe800bd111e89ecb96000007bc65',
+     'level': u'warning',
+     'timestamp': u'2018-02-07T06:37:00.297610Z',
+     'type': u'log'}
     '''
 
     log = json.loads(line)
-    type = log.get('type', 'log')
-    if type == "metric":
-        event = log.get('event', ' ')
-        event_dict = _parse_metric_event(event)
-        log['event'] = event_dict
-        log['session_id'] = event_dict.get("g_session_id", "")
-        log['url_id'] = event_dict.get('g_url_id', '')
-
-    log_id = log.get('id', '')
-    if isinstance(log_id, unicode):
-        log_id = str(log_id)
 
     return dict(
-        timestamp=log.get('timestamp', ' '),
+        timestamp=log['timestamp'],
         data=log,
-        id=log_id,
-        type=type
+        id=log['id'],
+        type=log['type'],
+        level=log['level'],
     )
 
 def elasticsearch(line):

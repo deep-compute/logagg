@@ -2,5 +2,5 @@ from collector import LogCollector
 from nsqsender import NSQSender
 from forwarder import LogForwarder
 from command import main
-import handlers
-
+import formatters
+import forwarders
