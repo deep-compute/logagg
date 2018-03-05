@@ -1,313 +1,356 @@
 # logagg
 logs aggregation framework
 
-Collect all the logs from the server and parses it by making a common schema for all the logs and stores at given storage engine.
+Collects all the logs from the server and parses it for making a common schema for all the logs and stores at given storage engine.
+
+
+----------
+
+
+## Components/Architecture/Terminology
+
+* `files` : Log files which are being tracked by logagg
+* `node` : The server(s) where the log `files` reside
+* `collector` : A program that runs on each `node` to collect and parse log lines in the `files`
+* `formatters` : The parser function that the `collector` uses to format the log lines to put it the common format.
+
+* `nsq` : The central location where logs are sent by `collector`(s) after formatting as messages.
+
+* `forwarder` : The program that runs on the central node which receives messages from `nsq` and passes it on to `forwarders`
+* `forwarders` : The parsers that take messages and formats it for storing at `target`(s) databases
+* `targets` : The databases that store the logs finally so that we can query on them easily
+
+
+----------
+
+
+## Features
+
+* Guaranteed delivery of each log line from files to `targets`
+* Reduced latency between a log being generated an being present in the `targets`
+* Options to add custom `formatters` & `target` databases
+* File poll if log file not yet generated
+* Works on rotational log files
+* Output format of processed log lines (dictionary)
+    * `id` (str) - A unique id per log with time ordering. Useful to avoid storing duplicates.
+    * `timestamp` (str) - ISO Format time. eg:
+    * `data` (dict) - Parsed log data
+    * `raw` (str) - Raw log line read from the log file
+    * `host` (str) - Hostname of the node where this log was generated
+    * `formatter` (str) - name of the formatter that processed the raw log line
+    * `file` (str) - Full path of the file in the host where this log line came from
+    * `type` (str) - One of "log", "metric" (Is there one more type?)
+    * `level` (str) - Log level of the log line.
+    * `error` (bool) - True if collection handler failed during processing
+    * `error_tb` (str) - Error traceback
+
+
+---
 
 ## Installation
 > Prerequisites: Python2.7
+### Setup
 
-> Note: tested and it works in python2.7 and not tested in other versions.
-
-- Install the `nsq` package, at where we need to bring up the `nsq` server.
+####  [Install](http://nsq.io/deployment/installing.html) the `nsq` package, at where we need to bring up the `nsq` server.
 - Run the following commands to install `nsq`:
-```bash
-sudo apt-get install libsnappy-dev
-wget https://s3.amazonaws.com/bitly-downloads/nsq/nsq-1.0.0-compat.linux-amd64.go1.8.tar.gz
-tar zxvf nsq-1.0.0-compat.linux-amd64.go1.8.tar.gz
-sudo cp nsq-1.0.0-compat.linux-amd64.go1.8/bin/{nsqd,nsqlookupd,nsqadmin} /usr/local/bin
-```
+    ```BASH
+    $ sudo apt-get install libsnappy-dev
+    $ wget https://s3.amazonaws.com/bitly-downloads/nsq/nsq-1.0.0-compat.linux-amd64.go1.8.tar.gz
+    $ tar zxvf nsq-1.0.0-compat.linux-amd64.go1.8.tar.gz
+    $ sudo cp nsq-1.0.0-compat.linux-amd64.go1.8/bin/* /usr/local/bin
+    ```
 
-### Install the `logagg` package by running commands,
-- Install the `logagg` package, at where we collect the logs and at where we forward the logs:
-- Run the following commands to install `logagg`:
-```bash
-git clone "https://github.com/deep-compute/logagg.git"
-cd logagg
-sudo python setup.py install
-```
+#### [Install](https://docs.docker.com/install/linux/docker-ce/ubuntu/#extra-steps-for-aufs) the Docker package, at both `forwarder` and `collector` nodes. (**If you will be using Docker image to run logagg**)
+- Run the following commands to install :
+    ```
+    $ sudo apt-get update
 
-## Usage
+    $ sudo apt-get install \
+        apt-transport-https \
+        ca-certificates \
+        curl \
+        software-properties-common
 
-### Bring up the `nsq` instances at the required server:
-```
-nsqlookupd
-nsqd -lookupd-tcp-address <ip-addr or DNS>:4160
-nsqadmin -lookupd-http-address <ip-addr or DNS>:4161
-```
-### Handling the logs
+    $ curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
 
-- To get the nginx logs in json format we have to modify the `nginx.conf` file in `/etc/nginx` directory.
-
-- Modify the `Logging Settings` section in the `nginx.conf` file by adding the below lines:
-```bash
-log_format  json  '{'
-                    '"remote_addr": "$remote_addr",'
-                    '"remote_user": "$remote_user",'
-                    '"timestamp": "$msec",'
-                    '"request": "$request",'
-                    '"status": "$status",'
-                    '"request_time": "$request_time",'
-                    '"body_bytes_sent": "$body_bytes_sent",'
-                    '"http_referer": "$http_referer",'
-                    '"http_user_agent": "$http_user_agent",'
-                    '"http_x_forwarded_for": "$http_x_forwarded_for",'
-                    '"upstream_response_time": "$upstream_response_time"'
-                    '}';
-```
-
-- Modify the line: `access_log /var/log/nginx/access.log;` to `access_log /var/log/nginx/access.log json;`
-
-- To test nginx config file
-```bash 
-nginx -t
-```
-
-- It shows like:
-```bash
-nginx: the configuration file /etc/nginx/nginx.conf syntax is ok
-
-nginx: configuration file /etc/nginx/nginx.conf test is successful
-```
-
-- Restart the nginx by using command:
-```bash
-/etc/init.d/nginx restart
-```
-
-### Usage
-
-- After installation of the logagg module, we can perform operations in the python shell.
+    $ sudo add-apt-repository \
+       "deb [arch=amd64] https://download.docker.com/linux/ubuntu \
+       $(lsb_release -cs) \
+       stable"
 
 
-```python
->>> import logagg
->>> dir(logagg)
-['LogCollector', 'LogForwarder', '__builtins__', '__doc__', '__file__', '__loader__', '__name__', '__package__', '__path__', 'collect', 'command', 'forward', 'main']
+    $ sudo apt-get update
 
->>> dir(logagg.collect)
-['__builtins__', '__doc__', '__file__', '__loader__', '__name__', '__package__', '__path__', 'collector', 'handlers']
+    $ sudo apt-get install docker-ce
+    ```
+- Check Docker version >= 17.12.1
+    ```
+    $ sudo docker version 
+    Client:
+     Version:	17.12.1-ce
+     API version:	1.35
+     Go version:	go1.9.4
+     Git commit:	7390fc6
+     Built:	Tue Feb 27 22:17:40 2018
+     OS/Arch:	linux/amd64
 
->>> dir(logagg.collect.handlers)
->>>['__builtins__', '__doc__', '__file__', '__loader__', '__name__', '__package__', '_parse_metric_event', 'basescript', 'convert_str2int', 'datetime', 'django', 'elasticsearch', 'json', 'mongodb', 'nginx_access', 're']
+    Server:
+     Engine:
+      Version:	17.12.1-ce
+      API version:	1.35 (minimum version 1.12)
+      Go version:	go1.9.4
+      Git commit:	7390fc6
+      Built:	Tue Feb 27 22:16:13 2018
+      OS/Arch:	linux/amd64
+      Experimental:	false
 
->>> logagg.collect.handlers.mongodb('2017-08-17T07:56:33.489+0200 I REPL     [signalProcessingThread] shutting down replication subsystems')
-{'timestamp': '2017-08-17T07:56:33.489+0200', 'data': {'timestamp': '2017-08-17T07:56:33.489+0200', 'message': 'shutting down replication subsystems', 'component': 'REPL', 'severity': 'I', 'context': '[signalProcessingThread]'}, 'type': 'log'}
-```
+    ```
 
-### Types of handlers we support
-- nginx_access
-- Django
-- MongoDB
-- Elasticsearch
-- Basescript
+### Install the `logagg` package, at where we collect the logs and at where we forward the logs:
+- Run the following command to **pip** install `logagg`: 
+    ```
+    $ sudo -H pip install https://github.com/deep-compute/pygtail/tarball/master/#egg=pygtail-0.6.1
+    $ sudo -H pip install logagg
+    ```
+    #### or
+- Run the following command to pull **docker** image of `logagg`:
+    ```
+    $ sudo docker pull deepcompute/logagg
+    ```
+
+
+---
+
+## Basic Usage
+
+### Bring up the `nsq` instances at the required server with following commands:
+- **NOTE:** Run each command in a seperate Terminal window
+- nsqlookupd
+    ```
+    $ nsqlookupd
+    ```
+- nsqd -lookupd-tcp-address **<ip-addr or DNS>**:4160
+    ```
+    $ nsqd -lookupd-tcp-address localhost:4160
+    ```
+- nsqadmin -lookupd-http-address **<ip-addr or DNS>**:4161
+    ```
+    $ nsqadmin -lookupd-http-address localhost:4161
+    ```
+### Collect logs from `node`
+#### For collecting logs we need a process writing logs in a file
+**NOTE:** Run each command in a seperate Terminal window
+
+- We will use [serverstats](https://github.com/deep-compute/serverstats)
+    - Install `serverstats` 
+        ```BASH
+        $ sudo pip install serverstats
+        ```
+    - Run `serverstats` to write logs in a `file` which will be tracked by `logagg collect`
+        ```bash
+        $ sudo serverstats --log-file /var/log/serverstats.log run
+        2018-03-01T06:57:00.709472Z [info     ] system_metrics                 _={'ln': 113, 'file': '/usr/local/lib/python2.7/dist-packages/serverstats/serverstats.py', 'name': 'serverstats.serverstats', 'fn': '_log_system_metrics'} cpu={'avg_load_5_min': 15.0, 'avg_load_15_min': 0.11, 'idle_percent': 89.0, 'iowait': 34.34, 'avg_load_1_min': 23.0, 'usage_percent': 11.0} disk={'usage': 6000046080, 'total': 41083600896, 'free_percent': 80.25838230555476, 'usage_percent': 15.4, 'free': 32973033472} id=20180301T065700_bd9ad0bc1d1d11e8bcf1000c2925b24d network_traffic={'lo': {'received': 93836, 'sent': 93836}, 'docker0': {'received': 0, 'sent': 0}, 'ens33': {'received': 268122175, 'sent': 3999917}} ram={'avail': 724705280, 'usage_percent': 59.5, 'avail_percent': 40.49408598212978, 'usage': 883863552, 'total': 1789657088, 'free': 120479744} swap={'usage': 11022336, 'total': 1071640576, 'free_percent': 98.97145215972112, 'free': 1060618240, 'usage_percent': 1.0} type=metric
+        2018-03-01T06:57:05.719910Z [info     ] system_metrics                 _={'ln': 113, 'file': '/usr/local/lib/python2.7/dist-packages/serverstats/serverstats.py', 'name': 'serverstats.serverstats', 'fn': '_log_system_metrics'} cpu={'avg_load_5_min': 15.0, 'avg_load_15_min': 0.11, 'idle_percent': 89.0, 'iowait': 34.34, 'avg_load_1_min': 21.0, 'usage_percent': 11.0} disk={'usage': 6000046080, 'total': 41083600896, 'free_percent': 80.25838230555476, 'usage_percent': 15.4, 'free': 32973033472} id=20180301T065705_c09761401d1d11e8bcf1000c2925b24d network_traffic={'lo': {'received': 93836, 'sent': 93836}, 'docker0': {'received': 0, 'sent': 0}, 'ens33': {'received': 268122175, 'sent': 3999917}} ram={'avail': 724721664, 'usage_percent': 59.5, 'avail_percent': 40.49500146477223, 'usage': 883859456, 'total': 1789657088, 'free': 120479744} swap={'usage': 11022336, 'total': 1071640576, 'free_percent': 98.97145215972112, 'free': 1060618240, 'usage_percent': 1.0} type=metric
+        ```
+#### Run `logagg collect` command
+- Normal run
+    ```bash
+    $ sudo logagg collect --file file=/var/log/serverstats.log:formatter=logagg.formatters.basescript --nsqtopic logagg --nsqd-http-address localhost:4151
+    
+    2018-03-01T08:59:25.768443Z [info     ] Created topic                  _={'ln': 33, 'file': '/usr/local/lib/python2.7/dist-packages/logagg/nsqsender.py', 'name': 'logagg.nsqsender', 'fn': '_ensure_topic'} id=20180301T085925_d799dd6c-1d2e-11e8-bcf1-000c2925b24d topic=logagg type=log
+    2018-03-01T08:59:25.771411Z [info     ] Created topic                  _={'ln': 33, 'file': '/usr/local/lib/python2.7/dist-packages/logagg/nsqsender.py', 'name': 'logagg.nsqsender', 'fn': '_ensure_topic'} id=20180301T085925_d799dd6d-1d2e-11e8-bcf1-000c2925b24d topic=Heartbeat#ephemeral type=log
+    2018-03-01T08:59:25.772415Z [info     ] found_formatter_fn             _={'ln': 208, 'file': '/usr/local/lib/python2.7/dist-packages/logagg/collector.py', 'name': 'logagg.collector', 'fn': '_scan_fpatterns'} fn=logagg.formatters.basescript id=20180301T085925_d79a74c0-1d2e-11e8-bcf1-000c2925b24d type=log
+    2018-03-01T08:59:25.772980Z [info     ] found_log_file                 _={'ln': 216, 'file': '/usr/local/lib/python2.7/dist-packages/logagg/collector.py', 'name': 'logagg.collector', 'fn': '_scan_fpatterns'} id=20180301T085925_d79a74c1-1d2e-11e8-bcf1-000c2925b24d log_file=/var/log/serverstats.log type=log
+    2018-03-01T08:59:25.773873Z [info     ] Started collect_log_lines thread  _={'ln': 223, 'file': '/usr/local/lib/python2.7/dist-packages/logagg/collector.py', 'name': 'logagg.collector', 'fn': '_scan_fpatterns'} id=20180301T085925_d79a74c2-1d2e-11e8-bcf1-000c2925b24d log_key=('/var/log/serverstats.log', '/var/log/serverstats.log', 'logagg.formatters.basescript') type=log
+    ```
+    ##### or
+- Docker run
+    ```bash
+    $ sudo docker run --name collector --volume /var/log:/var/log deepcompute/logagg logagg --log-level INFO collect --file file=/var/log/serverstats.log:formatter=logagg.formatters.basescript --nsqtopic logagg --nsqd-http-address <nsq-server-ip-or-DNS>:4151
+    ```
+    - **Note**: Replace **<nsq-server-ip-or-DNS>** with the ip of `nsq` server eg.: **192.168.0.211**
+    - **Note**: **--volume** argument is to mount local directory of log file into `Docker` `container`
+- We can check message traffic at `nsq` by going through the link:
+        **http://<nsq-server-ip-or-DNS>:4171/** for **localhost** see [here](http://localhost:4171/)
+         
+### Forward logs to `target` database(s) from `nsq`
+#### For forwarding logs we need a database instance up
+- We will use `mongoDB`
+    - Install [`mongoDB`](https://docs.mongodb.com/manual/tutorial/install-mongodb-on-linux/)
+    - Start `mongoDB` 
+        ```
+        $ sudo mongod --dbpath <database-path> --bind_ip_all
+        ```
+    - Create user for `mongoDB` using the following commands:
+        ```mongo
+        $ mongo
+        .
+        .
+        2018-03-01T03:47:54.027-0800 I CONTROL  [initandlisten] 
+        > 
+        > db.createUser(
+        ...    {
+        ...      user: "deadpool",
+        ...      pwd: "chimichanga",
+        ...      roles: [ "readWrite", "dbAdmin" ]
+        ...    }
+        ... )
+        Successfully added user: { "user" : "deadpool", "roles" : [ "readWrite", "dbAdmin" ] }
+        ```
+#### Run `logagg forward` command
+- Normal run
+    ```
+    $ logagg forward --nsqtopic logagg --nsqchannel test --nsqd-tcp-address localhost:4150 --target forwarder=logagg.forwarders.MongoDBForwarder:host=localhost:port=27017:user=deadpool:password=chimichanga:db=logs:collection=cluster_logs_and_metric
+    ```
+    #### or
+- Docker run
+    ```
+    sudo docker run --name forwarder deepcompute/logagg logagg forward --nsqtopic logagg --nsqchannel test --nsqd-tcp-address <nsq-server-ip-or-DNS>:4150 --target forwarder=logagg.forwarders.MongoDBForwarder:host=<mongoDB-server-ip-or-DNS>:port=27017:user=deadpool:password=chimichanga:db=logs:collection=cluster_logs_and_metrics
+    ```
+    - **NOTE**: Replace **<nsq-server-ip-or-DNS>** with the ip of `nsq` server
+    - **NOTE**: Replace **<mongoDB-server-ip-or-DNS>** with the ip of `mongoDB` server eg.: **192.168.0.111**
+    - **NOTE**: **--volume** argument is to mount local directory of log file into eg.: **192.168.0.111**
+- We can check records in mongoDB 
+    ```mongo
+    $ mongo
+    ....
+    ....
+    > show dbs
+    admin   0.000GB
+    config  0.000GB
+    local   0.000GB
+    logs    0.003GB
+    > use logs
+    switched to db logs
+    > show collections
+    cluster_logs_and_metrics
+    > db.cluster_logs_and_metrics.count()
+    5219
+    > db.cluster_logs_and_metrics.findOne()
+
+    ```
+---
+## Advanced Usage
 
 ### Help command
 - For `logagg`
-```bash
-logagg --help
-```
-- you should see something like:
-```bash
-usage: logagg [-h] [--name NAME] [--log-level LOG_LEVEL]
-              [--log-format {json,pretty}] [--log-file LOG_FILE] [--quiet]
-              {collect,forward,run} ...
+    ```bash
+    $ logagg --help
+    ```
+    ##### or
+    ```
+    $ sudo docker run deepcompute/logagg logagg --help
+    ```
+    - you should see something like:
+    ```
+    usage: logagg [-h] [--name NAME] [--log-level LOG_LEVEL]
+                  [--log-format {json,pretty}] [--log-file LOG_FILE] [--quiet]
+                  {collect,forward,run} ...
 
-Logagg command line tool
+    Logagg command line tool
 
-optional arguments:
-  -h, --help            show this help message and exit
-  --name NAME           Name to identify this instance
-  --log-level LOG_LEVEL
-                        Logging level as picked from the logging module
-  --log-format {json,pretty}
-                        Force the format of the logs. By default, if the
-                        command is from a terminal, print colorful logs.
-                        Otherwise, print json.
-  --log-file LOG_FILE   Writes logs to log file if specified, default: None
-  --quiet               if true, does not print logs to stderr, default: False
+    optional arguments:
+      -h, --help            show this help message and exit
+      --name NAME           Name to identify this instance
+      --log-level LOG_LEVEL
+                            Logging level as picked from the logging module
+      --log-format {json,pretty}
+                            Force the format of the logs. By default, if the
+                            command is from a terminal, print colorful logs.
+                            Otherwise print json.
+      --log-file LOG_FILE   Writes logs to log file if specified, default: None
+      --quiet               if true, does not print logs to stderr, default: False
 
-commands:
-  {collect,forward,run}
-    collect             Collects the logs from different processes and sends
-                        to nsq
-    forward             Collects all the messages from nsq and pushes to
-                        storage engine
-```
+    commands:
+      {collect,forward,run}
+        collect             Collects the logs from different processes and sends
+                            to nsq
+        forward             Collects all the messages from nsq and pushes to
+                            storage engine
+    ```
 
 - For `logagg collect`
-```bash
-logagg collect --help
-```
-- You should see something like
-```bash
-usage: logagg collect [-h] [--nsqchannel NSQCHANNEL]
-                      [--nsqd-http-address NSQD_HTTP_ADDRESS]
-                      [--depth-limit-at-nsq DEPTH_LIMIT_AT_NSQ]
-                      [--exception-logs-file EXCEPTION_LOGS_FILE]
-                      file [file ...] nsqtopic
-
-positional arguments:
-  file                  Provide absolute path of log file including the module name
-                        and function name, eg: /var/log/nginx/access.log:logag
-                        g.collect.handlers.nginx_access
-  nsqtopic              Topic name to publish messages. Ex: logs_and_metrics
-
-optional arguments:
-  -h, --help            show this help message and exit
-  --nsqchannel NSQCHANNEL
-                        Channel of nsqd
-  --nsqd-http-address NSQD_HTTP_ADDRESS
-                        nsqd HTTP address where we send the messages
-  --depth-limit-at-nsq DEPTH_LIMIT_AT_NSQ
-                        To limit the depth at nsq channel
-  --exception-logs-file EXCEPTION_LOGS_FILE
-                        If collector fails to publish messages to nsq, will
-                        write the logs to a file
-```
+    ```bash
+    $ logagg collect --help
+    ```
+    ##### or
+    ```
+    $ sudo docker run deepcompute/logagg logagg collect -h
+    ```
 
 - For `logagg forward`,
-```bash
-logagg forward --help
-```
-- You should see something like
-```bash
-usage: logagg forward [-h] [--nsqtopic NSQTOPIC] [--nsqchannel NSQCHANNEL]
-                      [--nsqd-tcp-address NSQD_TCP_ADDRESS]
-                      [--mongodb-server-url MONGODB_SERVER_URL]
-                      [--mongodb-port MONGODB_PORT]
-                      [--mongodb-user-name MONGODB_USER_NAME]
-                      [--mongodb-password MONGODB_PASSWORD]
-                      [--mongodb-database MONGODB_DATABASE]
-                      [--mongodb-collection MONGODB_COLLECTION]
-                      [--influxdb-server-url INFLUXDB_SERVER_URL]
-                      [--influxdb-port INFLUXDB_PORT]
-                      [--influxdb-user-name INFLUXDB_USER_NAME]
-                      [--influxdb-password INFLUXDB_PASSWORD]
-                      [--influxdb-database INFLUXDB_DATABASE]
+    ```
+    $ logagg forward --help
+    ```
+    ##### or
+    ```
+    $ sudo docker run deepcompute/logagg logagg forward -h
+    ```
+### Python interpreter
+- After installation of the logagg module through **pip**, we can perform operations in the python shell.
 
-optional arguments:
-  -h, --help            show this help message and exit
-  --nsqtopic NSQTOPIC   NSQ topic name to read messages from. Ex:
-                        logs_and_metrics
-  --nsqchannel NSQCHANNEL
-                        the channel of nsqd
-  --nsqd-tcp-address NSQD_TCP_ADDRESS
-                        nsqd TCP address where we get the messages
-  --mongodb-server-url MONGODB_SERVER_URL
-                        DNS of the server where mongo is running
-  --mongodb-port MONGODB_PORT
-                        port where mongo is running
-  --mongodb-user-name MONGODB_USER_NAME
-                        username of MongoDB
-  --mongodb-password MONGODB_PASSWORD
-                        password to authenticate MongoDB
-  --mongodb-database MONGODB_DATABASE
-                        database to store logs
-  --mongodb-collection MONGODB_COLLECTION
-                        collection to store logs
-  --influxdb-server-url INFLUXDB_SERVER_URL
-                        DNS of the server where influxdb is running
-  --influxdb-port INFLUXDB_PORT
-                        port where influxdb is running
-  --influxdb-user-name INFLUXDB_USER_NAME
-                        username of influxdb
-  --influxdb-password INFLUXDB_PASSWORD
-                        password to authenticate influxdb
-  --influxdb-database INFLUXDB_DATABASE
-                        database to store metrics
-```
-> The channel name `--nsqchannel` at logagg collect and logagg forward should be the same name.
 
-### How to run the collector?
+```python
+$ python
+>>> import logagg
+>>> dir(logagg)
+['LogCollector', 'LogForwarder', 'NSQSender', '__builtins__', '__doc__', '__file__', '__name__', '__package__', '__path__', 'collector', 'command', 'formatters', 'forwarder', 'forwarders', 'main', 'nsqsender', 'util']
 
-- Run `collector` by using command:
-```bash
-logagg collect /path/to/input/log_file:logagg.collect.handlers.<handler_name> <topic name> --nsqchannel <channel name> --nsqd-http-address <nsqd http address> --depth-limit-at-nsq <limit value> --exception-logs-file <file to write logs>
+>>> dir(logagg.formatters)
+['RawLog', '__builtins__', '__doc__', '__file__', '__name__', '__package__', 'basescript', 'convert_str2int', 'datetime', 'django', 'docker_log_file_driver', 'elasticsearch', 'json', 'mongodb', 'nginx_access', 're']
+
+>>> from pprint import pprint
+>>> mongo_line = '2017-08-17T07:56:33.489+0200 I REPL     \[signalProcessingThread\] shutting down replication subsystems'
+
+
+>>> pprint(logagg.formatters.mongodb(mongo_line))
+{'data': {'component': 'REPL',
+          'context': '[signalProcessingThread]',
+          'message': 'shutting down replication subsystems',
+          'severity': 'I',
+          'timestamp': '2017-08-17T07:56:33.489+0200'},
+ 'timestamp': '2017-08-17T07:56:33.489+0200'} 
 ```
 
-- Example run command:
-```bash
-logagg collect /var/log/nginx/access.log:logagg.collect.handlers.nginx_access nginx --nsqchannel test --nsqd-http-address localhost:4151 --depth-limit-at-nsq 150000 --exception-logs-file /var/log/logagg/exception_logs.log
-```
-
-### How to run the forwarder?
-
-- Run `forwarder` by using command:
-```bash
-logagg forward --nsqtopic <topic name> --nsqchannel <channel name> --nsqd-tcp-address <nsqd tcp address> --mongodb-user-name <username> --mongodb-password <password> --mongodb-server-url <server or  host> --mongodb-port <port num> --mongodb-database <database name> --mongodb-collection <collection name> --influxdb-server-url <server or host> --influxdb-port <port num> --influxdb-user-name <username> --influxdb-password <password> --influxdb-database <database name>
-```
-
-- Example run command:
-```bash
-logagg forward --nsqtopic nginx --nsqchannel test --nsqd-tcp-address localhost:4150 --mongodb-user-name abc --mongodb-password xxxxxx --mongodb-server-url localhost:27017 --mongodb-port 27017 --mongodb-database logs --mongodb-collection nginx --influxdb-server-url localhost --influxdb-port 8086 --influxdb-user-name abc --influxdb-password xxxxxx --influxdb-database metrics
-```
-
-### Check the message traffic at nsq
-- We can check, how many messages that are being written to nsq and reading from nsq through the browser, by going through the link:
-```bash
-<nsq server name or ip-addr>:4171
-```
-
-### How to check the records at forwarder end with a storage engine.
-- We are sending logs to MongoDB and metrics to InfluxDB. Further, we can support to send the logs to different storage engines.
-
-#### How to check records at MongoDB?
+### How to check records at MongoDB?
 - Connect to the mongo shell and perform queries:
 ```mongodb
 > use database_name
-> db.collection_name.find({'handler': 'logagg.collect.handlers.<handler_name>'})
+> db.collection_name.find({'formatter': 'logagg.formatters.<handler_name>'})
 ```
 - You can see the basic format of record like below:
 ```json
 {
-  "_id": "UUID1",
-  "timestamp": "isoformat_time. Ex: 2017-08-01T07:32:24.183981Z",
-  "data": {},
-  "raw": "raw_log_line",
-  "host": "x.com",
-  "handler": "logagg.collect.handlers.<handler-name>",
-  "file": "/path/to/log/file",
-  "type": "log | metric"
+  "_id" : ObjectId("some_id"),
+  "level" : "info",
+  "timestamp" : "isoformat_time. Ex: 2017-08-01T07:32:24.183981Z",
+  "data" : {},
+  "raw" : "raw_log_line",
+  "host" : "x.com",
+  "formatter" : "logagg.formatters.basescript",
+  "file" : "/path/to/log/file",
+  "type" : "log | metric"
+  "id" : "20180301T065838_f7e042841d1d11e8bcf1000c2925b24d"
 }
 ```
 
-- Example to get the records for `nginx`:
+- Arbitrary example to get the records for `nginx`:
 ```mongodb  
 > use nginx
-> db.logs.find({'handler': 'logagg.collect.handlers.nginx_access', 'data.request_time' : {$gt: 0}})
+> db.cluster_logs_and_metrics.find({'handler': 'logagg.handlers.nginx_access', 'data.request_time' : {$gt: 0}}).count()
+751438
+> db.cluster_logs_and_metrics.find({'handler': 'logagg.handlers.nginx_access', 'data.request_time' : {$gt: 60}}).count()
+181
+
 ```
-- You should see something like below:
-```json
-{
-  "_id": "4ca83315a2b711e7bcf910bf487fe126",
-  "timestamp": "2017-08-01T07:32:24.183981Z",
-  "data": {
-    "status": 404,
-    "body_bytes_sent": 152,
-    "remote_user": "-",
-    "request_time": 3.744,
-    "http_referer": "-",
-    "remote_addr": "127.0.0.1",
-    "http_x_forwarded_for": "-",
-    "request": "GET /muieblackcat HTTP/1.1",
-    "http_user_agent": "-",
-    "time_local": "2017-09-26T13:49:37+02:00"
-  },
-  "raw": "{\"remote_addr\": \"127.0.0.1\",\"remote_user\": \"-\",\"time_local\": \"2017-09-26T13:49:37+02:00\",\"request\": \"GET /muieblackcat HTTP/1.1\",\"status\": \"404\",\"request_time\": \"3.744\",\"body_bytes_sent\": \"152\",\"http_referer\": \"-\",\"http_user_agent\": \"-\",\"http_x_forwarded_for\": \"-\"}",
-  "host": "localhost",
-  "handler": "logagg.collect.handlers.nginx_access",
-  "file": "/var/log/nginx/access.log",
-  "type": "log"
-}
-```
-#### How to check metrics at InfluxDB?
+### How to check metrics at InfluxDB?
 - For metrics, connect to the InfluxDB shell and perform queries.
 ```influxdb
 > use database_name
 > show measurements
 > select <field_key> from <measurement_name>
 ```
-- Example to get the metrics for a `measurement`:
+- Arbitrary example to get the metrics for a `measurement`:
 ```influxdb
 > use nginx
 > select request_time from nginx_metric limit 10
@@ -328,7 +371,33 @@ time                request_time
 1508770761000000000 0.247
 ```
 
+---
 
+### Types of handlers we support
+| Formatter-name | Comments |
+| -------- | -------- |
+|   nginx_access   | See Configuration [here](https://github.com/deep-compute/logagg/issues/61)    |
+|django||
+|mongodb||
+|elasticsearch||
+|basescript||
+|docker_file_log_driver|See example [here](https://github.com/deep-compute/serverstats/issues/6)|
+### Types of forwarders we support
+| Forwarder-name | Sample command |
+| -------- | -------- |
+|MongoDBForwarder|`--target forwarder=logagg.forwarders.MongoDBForwarder:host=<mongoDB-server-ip>:port=<mongod-port-number>:user=<user-name>:password=<passwd>:db=<db-name>:collection=<collection name>`|
+|InfluxDBForwarder|`--target forwarder=logagg.forwarders.InfluxDBForwarder:host=<influxDB-server-ip>:port=<influxd-port-number>:user=<user-name>:password=<passwd>:db=<db-name>:collection=nothing`|
+
+---
+## Build on it
+
+You're more than welcome to hack on this:-)
+
+```bash
+$ git clone https://github.com/deep-compute/logagg
+$ cd logagg
+$ sudo python setup.py install
+$ docker build -t logagg .
+```
 -------------------------------------------------------------------
-
 
