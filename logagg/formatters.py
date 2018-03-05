@@ -14,7 +14,7 @@ def docker_log_file_driver(line):
                             timestamp=log.get('timestamp'),
                             )
                         )
-    return dict(timestamp=log.get('timestamp'), data=log)
+    return dict(timestamp=log.get('timestamp'), data=log, type='log')
 
 def nginx_access(line):
     '''
@@ -27,18 +27,19 @@ def nginx_access(line):
                         }'
     >>> output_line1 = nginx_access(input_line1)
     >>> pprint.pprint(output_line1)
-    {'data': {u'body_bytes_sent': 396.0,
+    {'data': {u'body_bytes_sent': u'396',
               u'http_referer': u'-',
               u'http_user_agent': u'python-requests/2.18.4',
               u'http_x_forwarded_for': u'-',
               u'remote_addr': u'127.0.0.1',
               u'remote_user': u'-',
               u'request': u'GET / HTTP/1.1',
-              u'request_time': 0.0,
-              u'status': 200.0,
+              u'request_time': u'0.000',
+              u'status': u'200',
               u'timestamp': '2018-01-05T09:31:39.201000',
               u'upstream_response_time': 0.0},
-     'timestamp': '2018-01-05T09:31:39.201000'}
+     'timestamp': '2018-01-05T09:31:39.201000',
+     'type': 'metric'}
 
     >>> input_line2 = '{ \
                     "remote_addr": "192.158.0.51","remote_user": "-","timestamp": "1515143686.415", \
@@ -48,18 +49,19 @@ def nginx_access(line):
                        }'
     >>> output_line2 = nginx_access(input_line2)
     >>> pprint.pprint(output_line2)
-    {'data': {u'body_bytes_sent': 152.0,
+    {'data': {u'body_bytes_sent': u'152',
               u'http_referer': u'-',
               u'http_user_agent': u'python-requests/2.18.4',
               u'http_x_forwarded_for': u'-',
               u'remote_addr': u'192.158.0.51',
               u'remote_user': u'-',
               u'request': u'POST /mpub?topic=heartbeat HTTP/1.1',
-              u'request_time': 0.0,
-              u'status': 404.0,
+              u'request_time': u'0.000',
+              u'status': u'404',
               u'timestamp': '2018-01-05T09:14:46.415000',
               u'upstream_response_time': 0.0},
-     'timestamp': '2018-01-05T09:14:46.415000'}
+     'timestamp': '2018-01-05T09:14:46.415000',
+     'type': 'metric'}
     '''
 #TODO Handle nginx error logs
     log = json.loads(line)
@@ -67,11 +69,11 @@ def nginx_access(line):
     log.update({'timestamp':timestamp_iso})
     if '-' in log.get('upstream_response_time'):
         log['upstream_response_time'] = 0.0
-    log = convert_str2int(log)
 
     return dict(
         timestamp=log.get('timestamp',' '),
-        data=log
+        data=log,
+        type='metric'
     )
 
 def mongodb(line):
@@ -85,7 +87,9 @@ def mongodb(line):
               'message': 'shutting down replication subsystems',
               'severity': 'I',
               'timestamp': '2017-08-17T07:56:33.489+0200'},
-     'timestamp': '2017-08-17T07:56:33.489+0200'}
+     'level': 'I',
+     'timestamp': '2017-08-17T07:56:33.489+0200',
+     'type': 'log'}
 
     >>> input_line2 = '2017-08-17T07:56:33.515+0200 W NETWORK  [initandlisten] No primary detected for set confsvr_repl1'
     >>> output_line2 = mongodb(input_line2)
@@ -95,7 +99,9 @@ def mongodb(line):
               'message': 'No primary detected for set confsvr_repl1',
               'severity': 'W',
               'timestamp': '2017-08-17T07:56:33.515+0200'},
-     'timestamp': '2017-08-17T07:56:33.515+0200'}
+     'level': 'W',
+     'timestamp': '2017-08-17T07:56:33.515+0200',
+     'type': 'log'}
     '''
 
     keys = ['timestamp', 'severity', 'component', 'context', 'message']
@@ -104,20 +110,10 @@ def mongodb(line):
 
     return dict(
         timestamp=values[0],
-        data=mongodb_log
+        data=mongodb_log,
+        type='log',
     )
 
-def convert_str2int(data):
-    '''
-    >>> event = {"event": "api,fn=functioname,host=localhost,name=Server,success=True c_invoked=1, t_duration_count=1,t_duration_lower=0.0259876251221,t_duration_mean=0.0259876251221, t_duration_sum=0.0259876251221,t_duration_upper=0.0259876251221 1494850222862"}
-    >>> convert_str2int(event)
-    {'event': 'api,fn=functioname,host=localhost,name=Server,success=True c_invoked=1, t_duration_count=1,t_duration_lower=0.0259876251221,t_duration_mean=0.0259876251221, t_duration_sum=0.0259876251221,t_duration_upper=0.0259876251221 1494850222862'}
-    '''
-    for key, val in data.items():
-        if isinstance(val, basestring):
-            if val.isdigit() or val.replace('.', '', 1).isdigit() or val.lstrip('-+').replace('.', '', 1).isdigit():
-                data[key] = float(val)
-    return data
 
 def django(line):
     '''
@@ -182,6 +178,7 @@ def django(line):
 
         return dict(
                 timestamp=data['timestamp'],
+                level=data['loglevel'],
                 data=data
             )
     else:
@@ -218,7 +215,7 @@ def basescript(line):
         data=log,
         id=log['id'],
         type=log['type'],
-        level=log['level'],
+        level=log['level']
     )
 
 def elasticsearch(line):
@@ -230,14 +227,16 @@ def elasticsearch(line):
     >>> output_line = elasticsearch(input_line)
     >>> pprint.pprint(output_line)
     {'data': {'garbage_collector': 'gc',
-              'gc_count': 296816.0,
+              'gc_count': '296816',
               'level': 'WARN ',
               'message': 'o.e.m.j.JvmGcMonitorService',
               'plugin': 'Glsuj_2',
               'query_time_ms': 1200.0,
               'resp_time_ms': 1300.0,
               'timestamp': '2017-08-30T06:27:19,158'},
-     'timestamp': '2017-08-30T06:27:19,158'}
+     'level': 'WARN ',
+     'timestamp': '2017-08-30T06:27:19,158',
+     'type': 'metric'}
 
     Case 2:
     [2017-09-13T23:15:00,415][WARN ][o.e.i.e.Engine           ] [Glsuj_2] [filebeat-2017.09.09][3] failed engine [index]
@@ -264,11 +263,12 @@ def elasticsearch(line):
                 continue
 
         data = dict(zip(keys,values))
-        data = convert_str2int(data)
 
         return dict(
                 timestamp=values[0],
-                data=data
+                level=values[1],
+                type='metric',
+                data=data,
         )
 
     else:

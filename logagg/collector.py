@@ -10,10 +10,10 @@ import datetime
 from operator import attrgetter
 import traceback
 
-from logagg import util
-from logagg.formatters import RawLog
 from deeputil import AttrDict, keeprunning
 from pygtail import Pygtail
+from logagg import util
+from logagg.formatters import RawLog
 
 # TODO
 '''
@@ -21,19 +21,6 @@ After a downtime of collector, pygtail is missing logs from rotational files
 '''
 
 class LogCollector(object):
-    '''
-    Instantiate LogCollector class with an object
-
-    >>> from logagg import LogCollector
-    >>> lc = LogCollector('~/Desktop/log_samples/access_new.log:logagg.formatters.nginx_access', \
-                                'test_topic', 'localhost:4151', 10000, 30)
-    >>> lc.log
-    <deeputil.misc.Dummy object at 0x7fc902bb7c10>
-    >>> lc.nsqd_http_address
-    'localhost:4151'
-    >>> lc.nsq_max_depth
-    10000
-    '''
     DESC = 'Collects the log information and sends to NSQTopic'
 
     QUEUE_MAX_SIZE = 2000           # Maximum number of messages in in-mem queue
@@ -46,7 +33,8 @@ class LogCollector(object):
     HOST = socket.gethostname()
     HEARTBEAT_RESTART_INTERVAL = 30 # Wait time if heartbeat sending stops
     #TODO check for structure in validate_log_format
-    STRUCT = ('id', 'timestamp', 'file', 'host', 'formatter', 'raw', 'type', 'level')
+    LOG_STRUCTURE = ('id', 'timestamp', 'file', 'host', 'formatter',
+              'raw', 'type', 'level', 'data', 'error', 'error_tb')
 
     def __init__(self, fpaths, nsq_sender,
                 heartbeat_interval, log=util.DUMMY_LOGGER):
@@ -107,8 +95,7 @@ class LogCollector(object):
             time.sleep(t)
 
     def validate_log_format(self, log):
-        # FIXME: test level, type also
-        # FIXME: test value of level, type, timestamp
+        assert (not False in [(key in self.LOG_STRUCTURE) for key in log])
         assert isinstance(log, dict)
         assert isinstance(log['id'], basestring)
         assert isinstance(log['data'], dict)
