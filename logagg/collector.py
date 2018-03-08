@@ -87,7 +87,7 @@ class LogCollector(object):
                     file=fpath,
                     host=self.HOST,
                     formatter=L['formatter'],
-                    event='default_event',
+                    event='event',
                     raw=line,
                     timestamp=datetime.datetime.utcnow().isoformat(),
                     type='log',

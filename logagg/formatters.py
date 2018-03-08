@@ -9,7 +9,7 @@ def docker_log_file_driver(line):
     log = json.loads(json.loads(line)['msg'])
     if 'formatter' in log.get('extra'):
         return RawLog(dict(formatter=log.get('extra').get('formatter'),
-                            raw=log.get('message'),
+                            raw=str(log.get('message')),
                             host=log.get('host'),
                             timestamp=log.get('timestamp'),
                             )
@@ -27,14 +27,14 @@ def nginx_access(line):
                         }'
     >>> output_line1 = nginx_access(input_line1)
     >>> pprint.pprint(output_line1)
-    {'data': {u'body_bytes_sent': u'396',
+    {'data': {u'body_bytes_sent': 396.0,
               u'http_referer': u'-',
               u'http_user_agent': u'python-requests/2.18.4',
               u'http_x_forwarded_for': u'-',
               u'remote_addr': u'127.0.0.1',
               u'remote_user': u'-',
               u'request': u'GET / HTTP/1.1',
-              u'request_time': u'0.000',
+              u'request_time': 0.0,
               u'status': u'200',
               u'timestamp': '2018-01-05T09:31:39.201000',
               u'upstream_response_time': 0.0},
@@ -50,14 +50,14 @@ def nginx_access(line):
                        }'
     >>> output_line2 = nginx_access(input_line2)
     >>> pprint.pprint(output_line2)
-    {'data': {u'body_bytes_sent': u'152',
+    {'data': {u'body_bytes_sent': 152.0,
               u'http_referer': u'-',
               u'http_user_agent': u'python-requests/2.18.4',
               u'http_x_forwarded_for': u'-',
               u'remote_addr': u'192.158.0.51',
               u'remote_user': u'-',
               u'request': u'POST /mpub?topic=heartbeat HTTP/1.1',
-              u'request_time': u'0.000',
+              u'request_time': 0.0,
               u'status': u'404',
               u'timestamp': '2018-01-05T09:14:46.415000',
               u'upstream_response_time': 0.0},
@@ -71,7 +71,11 @@ def nginx_access(line):
     log.update({'timestamp':timestamp_iso})
     if '-' in log.get('upstream_response_time'):
         log['upstream_response_time'] = 0.0
-    event = log['request'].split(' ')[0]+'_request'
+    log['body_bytes_sent'] = float(log['body_bytes_sent'])
+    log['request_time'] = float(log['request_time'])
+    log['upstream_response_time'] = float(log['upstream_response_time'])
+    
+    event = log['request'].split(' ')[0] + '_request'
 
     return dict(
         timestamp=log.get('timestamp',' '),
@@ -233,8 +237,8 @@ def elasticsearch(line):
     >>> output_line = elasticsearch(input_line)
     >>> pprint.pprint(output_line)
     {'data': {'garbage_collector': 'gc',
-              'gc_count': '296816',
-              'level': 'WARN ',
+              'gc_count': 296816.0,
+              'level': 'WARN',
               'message': 'o.e.m.j.JvmGcMonitorService',
               'plugin': 'Glsuj_2',
               'query_time_ms': 1200.0,
@@ -270,11 +274,17 @@ def elasticsearch(line):
                 continue
 
         data = dict(zip(keys,values))
+        if 'level' in data and data['level'][-1] == ' ':
+            data['level'] = data['level'][:-1]
+        if 'gc_count' in data:
+            data['gc_count'] = float(data['gc_count'])
         event = data['message']
-
+        level=values[1]
+        timestamp=values[0]
+        
         return dict(
-                timestamp=values[0],
-                level=values[1],
+                timestamp=timestamp,
+                level=level,
                 type='metric',
                 data=data,
                 event=event
