@@ -66,28 +66,6 @@ def flatten_dict(d):
             fd[key] = value
     return fd
 
-def is_number(s):
-    '''
-    >>> is_number('alfkalfkw221')
-    False
-    >>> is_number('567678.9')
-    True
-    >>> is_number('-567678.9')
-    True
-    >>> is_number('221a')
-    False
-    '''
-    try:
-        float(s)
-        return True
-    except ValueError:
-        pass
- 
-    try:
-        import unicodedata
-        unicodedata.numeric(s)
-        return True
-    except (TypeError, ValueError):
-        pass
- 
-    return False
+import numbers
+
+def is_number(x): return isinstance(x, numbers.Number)

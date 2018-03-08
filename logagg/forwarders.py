@@ -60,7 +60,7 @@ class MongoDBForwarder(BaseForwarder):
         self.log.info('MongoDB_collection_created' ,
                        collection=self.collection, db=self.db_name)
 
-    def _parse_msg_for_MongoDB(self, msgs):
+    def _parse_msg_for_mongoDB(self, msgs):
         msgs_list = []
         #TODO: We need to do this by using iteration object.
         for msg in msgs:
@@ -79,7 +79,7 @@ class MongoDBForwarder(BaseForwarder):
                                     record=msg, tb=opfail.details)
 
     def handle_logs(self, msgs):
-        msgs_list = self._parse_msg_for_MongoDB(msgs)
+        msgs_list = self._parse_msg_for_mongoDB(msgs)
         try:
             self.log.debug('inserting_msgs_mongodb')
             self.collection.insert_many([msg for msg in msgs_list], ordered=False)
@@ -98,8 +98,9 @@ from influxdb.client import InfluxDBServerError
 from logagg.util import flatten_dict, is_number
 
 class InfluxDBForwarder(BaseForwarder):
-    INFLUXDB_RECORDS = []
     EXCLUDE_TAGS = ["raw", "timestamp", "type", "event"]
+
+    influxDB_records = []
 
     def __init__(self,
                  host, port,
@@ -128,12 +129,12 @@ class InfluxDBForwarder(BaseForwarder):
         for key in event:
             if key not in self.EXCLUDE_TAGS and '_' not in key.split('.'):
                 if is_number(event[key]):
-                    f[key] = float(event[key])
+                    f[key] = event[key]
                 else:
                     t[key] = event[key]
         return t, f
 
-    def parse_msg_for_influxdb(self, msgs):
+    def parse_msg_for_influxDB(self, msgs):
         #TODO: We need to do this by using iteration object.
         series = []
         for msg in msgs:
@@ -160,19 +161,19 @@ class InfluxDBForwarder(BaseForwarder):
             msgs_list.append(msg_body)
 
         self.log.debug('parsing_of_metrics_started')
-        records = self.parse_msg_for_influxdb(msgs_list)
-        self.INFLUXDB_RECORDS.extend(records)
+        records = self.parse_msg_for_influxDB(msgs_list)
+        self.influxDB_records.extend(records)
         self.log.debug('parsing_of_metrics_completed')
 
-        self.INFLUXDB_RECORDS = [record for record in self.INFLUXDB_RECORDS if record]
+        self.influxDB_records = [record for record in self.influxDB_records if record]
         try:
             self.log.debug('inserting_the_metrics_into_influxdb')
-            self.influxdb_client.write_points(self.INFLUXDB_RECORDS)
+            self.influxdb_client.write_points(self.influxDB_records)
             self.log.info('metrics_inserted_into_influxdb',
-                           length=len(self.INFLUXDB_RECORDS),
+                           length=len(self.influxDB_records),
                            type='metric')
-            self.INFLUXDB_RECORDS = []
+            self.influxDB_records = []
         except (InfluxDBClientError, InfluxDBServerError) as e:
             self.log.exception('failed_to_insert metric',
-                                record=(self.INFLUXDB_RECORDS),
-                                length=len(self.INFLUXDB_RECORDS))
+                                record=self.influxDB_records,
+                                length=len(self.influxDB_records))
