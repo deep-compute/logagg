@@ -62,13 +62,15 @@ class LogCollector(object):
         self.formatters = {}
         self.queue = Queue.Queue(maxsize=self.QUEUE_MAX_SIZE)
 
-    def validate_log_format(self, log):
+    def _remove_redundancy(self, log):
         for key in log:
-            #To avoid duplicate information
             if key in log and key in log['data']:
                 log[key] = log['data'].pop(key)
+        return log
 
-            assert bool(key in self.LOG_STRUCTURE)
+    def validate_log_format(self, log):
+        for key in log:
+            assert (key in self.LOG_STRUCTURE)
             assert isinstance(log[key], self.LOG_STRUCTURE[key])
 
     @keeprunning(LOG_FILE_POLL_INTERVAL, on_error=util.log_exception)
@@ -101,6 +103,7 @@ class LogCollector(object):
                     _log = util.load_object(formatter)(raw_log)
 
                 log.update(_log)
+                log = self._remove_redundancy(log)
                 self.validate_log_format(log)
             except (SystemExit, KeyboardInterrupt) as e: raise
             except:
