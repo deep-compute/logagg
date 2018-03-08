@@ -1,6 +1,7 @@
 import time
 import Queue
 from threading import Thread
+from multiprocessing.pool import ThreadPool
 
 from deeputil import Dummy
 from logagg import util
@@ -23,13 +24,14 @@ class LogForwarder(object):
         self.message_source = message_source
         self.targets = targets
         self.log = log
+        self._pool = ThreadPool()
 
     def start(self):
 
         # Initialize a queue to carry messages between the
         # producer (nsq_reader) and the consumer (read_from_q)
         self.msgqueue = Queue.Queue(maxsize=self.QUEUE_MAX_SIZE)
-        self.log.info('Created Queue object with max size of %d' % (self.QUEUE_MAX_SIZE))
+        self.log.info('created_Queue_object', size=(self.QUEUE_MAX_SIZE))
 
         # Starts the thread which we get the messages from queue
         th = self.consumer_thread = Thread(target=self.read_from_q)
@@ -38,7 +40,7 @@ class LogForwarder(object):
 
         # Establish connection to nsq from where we get the logs
         # Since, it is a blocking call we are starting the reader here.
-        self.log.info('Starting nsq reader')
+        self.log.info('Starting_nsq_reader')
         self.handle_msg(self.message_source)
 
         th.join()
@@ -70,10 +72,10 @@ class LogForwarder(object):
 
             try:
                 if should_push:
-                    self.log.info('Writing %d messages to databases' % (len(msgs)))
+                    self.log.debug('Writing_messages_to_databases')
                     self._write_messages(msgs)
                     self._ack_messages(msgs)
-                    self.log.info('Ack to nsq is done for %d msgs' % (len(msgs)))
+                    self.log.debug('Ack_to_nsq_is_done_for_msgs', num_msgs=len(msgs))
 
                     msgs = []
                     last_push_ts = time.time()
@@ -86,12 +88,29 @@ class LogForwarder(object):
                 msg.fin()
             except (SystemExit, KeyboardInterrupt): raise
             except:
-                self.log.exception('msg ack failed')
+                self.log.exception('msg_ack_failed')
+
+    def _send_msgs_to_target(self, target, msgs):
+        while 1:
+            try:
+                target.handle_logs(msgs)
+                break
+            except (SystemExit, KeyboardInterrupt): raise
+            except:
+                # FIXME: need to check whether this works at all
+                # FIXME: do we log the failed messages themselves somewhere?
+                self.log.exception('_send_msgs_to_target_failed',
+                        target=target.__name__, num_msgs=len(msgs))
+                time.sleep(5) # FIXME: don't hard code this number
+                # FIXME: also implement some sort of backoff sleep
 
     def _write_messages(self, msgs):
-        # FIXME: what if a target fails to handle logs properly and
-        # throws an exception? we need to protect against that case.
-        for one_target in self.targets:
-            util.start_daemon_thread(one_target.handle_logs(msgs)).join
-            self.log.debug('Starting to write messeges ', target=one_target)
-
+        #import pdb; pdb.set_trace()
+        fn = self._send_msgs_to_target
+        
+        jobs = []
+        for t in self.targets:
+            jobs.append(self._pool.apply_async(fn, (t, msgs)))
+            
+        for j in jobs:
+            j.wait()

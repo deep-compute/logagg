@@ -24,6 +24,7 @@ class LogaggCommand(BaseScript):
         path, args = t.split(':', 1)
         path = path.split('=')[1]
         args = dict(a.split('=', 1) for a in args.split(':'))
+        args['log'] = self.log
         return path, args
 
     def forward(self):

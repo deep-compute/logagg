@@ -1,5 +1,6 @@
 
-from deeputil import Dummy
+from deeputil import deepgetattr
+from deeputil import Dummy, AttrDict
 DUMMY_LOGGER = Dummy()
 
 
@@ -34,3 +35,59 @@ def start_daemon_thread(target, args=()):
     th.start()
     return th
 
+def serialize_dict_keys(d, prefix=""):
+    """ returns all the keys in a dictionary
+    >>> serialize_dict_keys({"a": {"b": {"c": 1, "b": 2} } })
+    ['a', 'a.b', 'a.b.c', 'a.b.b']
+    """
+
+    keys = []
+    for k,v in d.iteritems():
+        fqk = '%s%s' % (prefix, k)
+        keys.append(fqk)
+        if isinstance(v, dict):
+            keys.extend(serialize_dict_keys(v, prefix="%s." % fqk))
+
+    return keys
+
+def flatten_dict(d):
+    '''
+    >>> flatten_dict({"a": {"b": {"c": 1, "b": 2} } })
+    {'a.b.b': 2, 'a.b.c': 1}
+    '''
+    fd = dict()
+    keys = serialize_dict_keys(d)
+    d = AttrDict(d)
+    for key in keys:
+        value = deepgetattr(d, key)
+        if isinstance(value, dict):
+            pass
+        else:
+            fd[key] = value
+    return fd
+
+def is_number(s):
+    '''
+    >>> is_number('alfkalfkw221')
+    False
+    >>> is_number('567678.9')
+    True
+    >>> is_number('-567678.9')
+    True
+    >>> is_number('221a')
+    False
+    '''
+    try:
+        float(s)
+        return True
+    except ValueError:
+        pass
+ 
+    try:
+        import unicodedata
+        unicodedata.numeric(s)
+        return True
+    except (TypeError, ValueError):
+        pass
+ 
+    return False
