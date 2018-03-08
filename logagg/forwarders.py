@@ -83,7 +83,7 @@ class MongoDBForwarder(BaseForwarder):
         try:
             self.log.debug('inserting_msgs_mongodb')
             self.collection.insert_many([msg for msg in msgs_list], ordered=False)
-            self.log.info('inserted_msgs_mongodb', num_msgs=len(msgs), type='metric')
+            self.log.info('logs_inserted_into_mongodb', num_msgs=len(msgs), type='metric')
         except pymongo.errors.AutoReconnect(message='connection_to_mongoDB_failed'):
             self._ensure_connection()
         except pymongo.errors.BulkWriteError as bwe:

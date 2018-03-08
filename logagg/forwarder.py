@@ -19,6 +19,8 @@ class LogForwarder(object):
     MAX_SECONDS_TO_PUSH = 1
     MAX_MESSAGES_TO_PUSH = 200
 
+    WAIT_TIME_TARGET_FAILURE = 10
+
     def __init__(self, message_source, targets, log=DUMMY_LOGGER):
 
         self.message_source = message_source
@@ -40,7 +42,7 @@ class LogForwarder(object):
 
         # Establish connection to nsq from where we get the logs
         # Since, it is a blocking call we are starting the reader here.
-        self.log.info('Starting_nsq_reader')
+        self.log.debug('starting_nsq_reader')
         self.handle_msg(self.message_source)
 
         th.join()
@@ -72,10 +74,10 @@ class LogForwarder(object):
 
             try:
                 if should_push:
-                    self.log.debug('Writing_messages_to_databases')
+                    self.log.debug('writing_messages_to_databases')
                     self._write_messages(msgs)
                     self._ack_messages(msgs)
-                    self.log.debug('Ack_to_nsq_is_done_for_msgs', num_msgs=len(msgs))
+                    self.log.debug('ack_to_nsq_is_done_for_msgs', num_msgs=len(msgs))
 
                     msgs = []
                     last_push_ts = time.time()
@@ -97,15 +99,13 @@ class LogForwarder(object):
                 break
             except (SystemExit, KeyboardInterrupt): raise
             except:
-                # FIXME: need to check whether this works at all
                 # FIXME: do we log the failed messages themselves somewhere?
                 self.log.exception('_send_msgs_to_target_failed',
                         target=target.__name__, num_msgs=len(msgs))
-                time.sleep(5) # FIXME: don't hard code this number
+                time.sleep(self.WAIT_TIME_TARGET_FAILURE)
                 # FIXME: also implement some sort of backoff sleep
 
     def _write_messages(self, msgs):
-        #import pdb; pdb.set_trace()
         fn = self._send_msgs_to_target
         
         jobs = []

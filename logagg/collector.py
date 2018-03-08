@@ -77,7 +77,7 @@ class LogCollector(object):
     def collect_log_lines(self, log_file):
         L = log_file
         fpath = L['fpath']
-        self.log.debug('Tracking log file for log lines', fpath=fpath)
+        self.log.debug('tracking_file_for_log_lines', fpath=fpath)
 
         freader = Pygtail(fpath)
         for line_info in freader:
@@ -113,11 +113,11 @@ class LogCollector(object):
 
             self.queue.put(dict(log=json.dumps(log),
                                 freader=freader, line_info=line_info))
-            self.log.debug("TALLY: PUT into self.queue")
+            self.log.debug("TALLY:PUT_into_self.queue")
 
         while not freader.is_fully_acknowledged():
             t = self.PYGTAIL_ACK_WAIT_TIME
-            self.log.debug('Waiting for pygtail to fully ack', wait_time=t)
+            self.log.debug('waiting_for_pygtail_to_fully_ack', wait_time=t)
             time.sleep(t)
 
     def _get_msgs_from_queue(self, msgs, msgs_nbytes, timeout):
@@ -128,27 +128,27 @@ class LogCollector(object):
             try:
                 msg = self.queue.get(block=True, timeout=self.QUEUE_READ_TIMEOUT)
                 read_from_q = True
-                self.log.debug("TALLY: GET from self.queue")
+                self.log.debug("TALLY:GET_from_self.queue")
 
                 msgs.append(msg)
                 msgs_nbytes += len(msg['log'])
 
                 if msgs_nbytes > self.NBYTES_TO_SEND: # FIXME: class level const
-                    self.log.debug('Msg bytes read from in-queue got exceeded')
+                    self.log.debug('msg_bytes_read_inQueue_exceeded')
                     break
                 #FIXME condition never met
                 if time.time() - ts >= timeout and msgs:
-                    self.log.debug('Msg reading timeout from in-queue got exceeded')
+                    self.log.debug('msg_reading_timeout_from_inQueue_got_exceeded')
                     break
                     # TODO: What if a single log message itself is bigger than max bytes limit?
             except Queue.Empty:
-                self.log.debug('QUEUE empty')
+                self.log.debug('queue_empty')
                 time.sleep(self.QUEUE_READ_TIMEOUT)
                 if not msgs:
                     continue
                 else:
                     return msgs, msgs_nbytes, read_from_q
-        self.log.debug('Got msgs from in-queue')
+        self.log.debug('got_msgs_from_inQueue')
         return msgs, msgs_nbytes, read_from_q
 
 
@@ -171,13 +171,13 @@ class LogCollector(object):
             is_max_time_elapsed = time_since_last_push >= self.MAX_SECONDS_TO_PUSH
 
             should_push = len(msgs) > 0 and (is_max_time_elapsed or have_enough_msgs)
-            self.log.debug('desciding wheather to push', should_push=should_push)
+            self.log.debug('desciding_to_push', should_push=should_push)
 
         try:
-            self.log.debug('trying to push to nsq', msgs_length=len(msgs))
+            self.log.debug('trying_to_push_to_nsq', msgs_length=len(msgs))
             self.nsq_sender.handle_logs(msgs)
             self.confirm_success(msgs)
-            self.log.debug('pushed to nsq', msgs_length=len(msgs))
+            self.log.debug('pushed_to_nsq', msgs_length=len(msgs))
             msgs = []
             state.last_push_ts = time.time()
         except (SystemExit, KeyboardInterrupt): raise
@@ -220,7 +220,7 @@ class LogCollector(object):
                     if log_key not in self.log_reader_threads:
                         # There is no existing thread tracking this log file. Start one
                         self.log_reader_threads[log_key] = util.start_daemon_thread(self.collect_log_lines, (log_f,))
-                        self.log.info('Started collect_log_lines thread ', log_key=log_key)
+                        self.log.info('started_collect_log_lines_thread', log_key=log_key)
                     state.files_tracked.append(fpath)
         time.sleep(self.SCAN_FPATTERNS_INTERVAL)
 
