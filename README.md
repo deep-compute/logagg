@@ -41,6 +41,7 @@ Collects all the logs from the server and parses it for making a common schema f
     * `file` (str) - Full path of the file in the host where this log line came from
     * `type` (str) - One of "log", "metric" (Is there one more type?)
     * `level` (str) - Log level of the log line.
+    * `event` (str) - LOG event
     * `error` (bool) - True if collection handler failed during processing
     * `error_tb` (str) - Error traceback
 
@@ -212,7 +213,7 @@ Collects all the logs from the server and parses it for making a common schema f
     - **NOTE**: **--volume** argument is to mount local directory of log file into eg.: **192.168.0.111**
 - We can check records in mongoDB 
     ```mongo
-    $ mongo
+    $ mongo -u deadpool -p chimichanga
     ....
     ....
     > show dbs
@@ -328,6 +329,7 @@ $ python
   "raw" : "raw_log_line",
   "host" : "x.com",
   "formatter" : "logagg.formatters.basescript",
+  "event" : "default_event",
   "file" : "/path/to/log/file",
   "type" : "log | metric"
   "id" : "20180301T065838_f7e042841d1d11e8bcf1000c2925b24d"
@@ -381,7 +383,7 @@ time                request_time
 |mongodb||
 |elasticsearch||
 |basescript||
-|docker_file_log_driver|See example [here](https://github.com/deep-compute/serverstats/issues/6)|
+|docker_log_file_driver|See example [here](https://github.com/deep-compute/serverstats/issues/6)|
 ### Types of forwarders we support
 | Forwarder-name | Sample command |
 | -------- | -------- |

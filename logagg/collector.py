@@ -33,8 +33,21 @@ class LogCollector(object):
     HOST = socket.gethostname()
     HEARTBEAT_RESTART_INTERVAL = 30 # Wait time if heartbeat sending stops
     #TODO check for structure in validate_log_format
-    LOG_STRUCTURE = ('id', 'timestamp', 'file', 'host', 'formatter',
-              'raw', 'type', 'level', 'data', 'error', 'error_tb')
+    
+    LOG_STRUCTURE = {
+        'id': basestring,
+        'timestamp': basestring,
+        'file' : basestring,
+        'host': basestring,
+        'formatter' : basestring,
+        'raw' : basestring,
+        'type' : basestring,
+        'level' : basestring,
+        'event' : basestring,
+        'data' : dict,
+        'error' : basestring,
+        'error_tb' : basestring,
+    }
 
     def __init__(self, fpaths, nsq_sender,
                 heartbeat_interval, log=util.DUMMY_LOGGER):
@@ -48,6 +61,15 @@ class LogCollector(object):
         # Handle name to formatter fn obj map
         self.formatters = {}
         self.queue = Queue.Queue(maxsize=self.QUEUE_MAX_SIZE)
+
+    def validate_log_format(self, log):
+        for key in log:
+            #To avoid duplicate information
+            if key in log and key in log['data']:
+                log[key] = log['data'].pop(key)
+
+            assert bool(key in self.LOG_STRUCTURE)
+            assert isinstance(log[key], self.LOG_STRUCTURE[key])
 
     @keeprunning(LOG_FILE_POLL_INTERVAL, on_error=util.log_exception)
     def collect_log_lines(self, log_file):
@@ -63,6 +85,7 @@ class LogCollector(object):
                     file=fpath,
                     host=self.HOST,
                     formatter=L['formatter'],
+                    event='default_event',
                     raw=line,
                     timestamp=datetime.datetime.utcnow().isoformat(),
                     type='log',
@@ -93,19 +116,6 @@ class LogCollector(object):
             t = self.PYGTAIL_ACK_WAIT_TIME
             self.log.debug('Waiting for pygtail to fully ack', wait_time=t)
             time.sleep(t)
-
-    def validate_log_format(self, log):
-        assert (not False in [(key in self.LOG_STRUCTURE) for key in log])
-        assert isinstance(log, dict)
-        assert isinstance(log['id'], basestring)
-        assert isinstance(log['data'], dict)
-        assert isinstance(log['timestamp'], basestring)
-        assert isinstance(log['file'], str)
-        assert isinstance(log['host'], basestring)
-        assert isinstance(log['formatter'], basestring)
-        assert isinstance(log['raw'], basestring)
-        assert isinstance(log['type'], basestring)
-        assert isinstance(log['level'], basestring)
 
     def _get_msgs_from_queue(self, msgs, msgs_nbytes, timeout):
         read_from_q = False

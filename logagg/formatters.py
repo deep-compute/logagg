@@ -38,6 +38,7 @@ def nginx_access(line):
               u'status': u'200',
               u'timestamp': '2018-01-05T09:31:39.201000',
               u'upstream_response_time': 0.0},
+     'event': u'GET',
      'timestamp': '2018-01-05T09:31:39.201000',
      'type': 'metric'}
 
@@ -60,6 +61,7 @@ def nginx_access(line):
               u'status': u'404',
               u'timestamp': '2018-01-05T09:14:46.415000',
               u'upstream_response_time': 0.0},
+     'event': u'POST',
      'timestamp': '2018-01-05T09:14:46.415000',
      'type': 'metric'}
     '''
@@ -69,11 +71,13 @@ def nginx_access(line):
     log.update({'timestamp':timestamp_iso})
     if '-' in log.get('upstream_response_time'):
         log['upstream_response_time'] = 0.0
+    event = log['request'].split(' ')[0]+'_request'
 
     return dict(
         timestamp=log.get('timestamp',' '),
         data=log,
-        type='metric'
+        type='metric',
+        event=event
     )
 
 def mongodb(line):
@@ -87,7 +91,6 @@ def mongodb(line):
               'message': 'shutting down replication subsystems',
               'severity': 'I',
               'timestamp': '2017-08-17T07:56:33.489+0200'},
-     'level': 'I',
      'timestamp': '2017-08-17T07:56:33.489+0200',
      'type': 'log'}
 
@@ -99,7 +102,6 @@ def mongodb(line):
               'message': 'No primary detected for set confsvr_repl1',
               'severity': 'W',
               'timestamp': '2017-08-17T07:56:33.515+0200'},
-     'level': 'W',
      'timestamp': '2017-08-17T07:56:33.515+0200',
      'type': 'log'}
     '''
@@ -125,6 +127,7 @@ def django(line):
               'logname': '[app.middleware_log_req:50]',
               'message': 'View func called:{"exception": null,"processing_time": 0.00011801719665527344, "url": "<url>",host": "localhost", "user": "testing", "post_contents": "", "method": "POST" }',
               'timestamp': '2017-08-23T11:35:25'},
+     'level': 'INFO',
      'timestamp': '2017-08-23T11:35:25'}
 
     >>> input_line2 = '[22/Sep/2017 06:32:15] INFO [app.function:6022] {"UUID": "c47f3530-9f5f-11e7-a559-917d011459f7", "timestamp":1506061932546, "misc": {"status": 200, "ready_state": 4, "end_time_ms": 1506061932546, "url": "/api/function?", "start_time_ms": 1506061932113, "response_length": 31, "status_message": "OK", "request_time_ms": 433}, "user": "root", "host_url": "localhost:8888", "message": "ajax success"}'
@@ -146,6 +149,7 @@ def django(line):
                           u'timestamp': 1506061932546,
                           u'user': u'root'},
               'timestamp': '2017-09-22T06:32:15'},
+     'level': 'INFO',
      'timestamp': '2017-09-22T06:32:15'}
 
         Case2:
@@ -179,7 +183,7 @@ def django(line):
         return dict(
                 timestamp=data['timestamp'],
                 level=data['loglevel'],
-                data=data
+                data=data,
             )
     else:
         return dict(
@@ -202,6 +206,7 @@ def basescript(line):
               u'level': u'warning',
               u'timestamp': u'2018-02-07T06:37:00.297610Z',
               u'type': u'log'},
+     'event': u'exited via keyboard interrupt',
      'id': u'20180207T063700_4d03fe800bd111e89ecb96000007bc65',
      'level': u'warning',
      'timestamp': u'2018-02-07T06:37:00.297610Z',
@@ -215,7 +220,8 @@ def basescript(line):
         data=log,
         id=log['id'],
         type=log['type'],
-        level=log['level']
+        level=log['level'],
+        event=log['event']
     )
 
 def elasticsearch(line):
@@ -234,6 +240,7 @@ def elasticsearch(line):
               'query_time_ms': 1200.0,
               'resp_time_ms': 1300.0,
               'timestamp': '2017-08-30T06:27:19,158'},
+     'event': 'o.e.m.j.JvmGcMonitorService',
      'level': 'WARN ',
      'timestamp': '2017-08-30T06:27:19,158',
      'type': 'metric'}
@@ -263,12 +270,14 @@ def elasticsearch(line):
                 continue
 
         data = dict(zip(keys,values))
+        event = data['message']
 
         return dict(
                 timestamp=values[0],
                 level=values[1],
                 type='metric',
                 data=data,
+                event=event
         )
 
     else:
