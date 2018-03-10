@@ -167,7 +167,7 @@ Collects all the logs from the server and parses it for making a common schema f
     ##### or
 - Docker run
     ```bash
-    $ sudo docker run --name collector --volume /var/log:/var/log deepcompute/logagg logagg --log-level INFO collect --file file=/var/log/serverstats.log:formatter=logagg.formatters.basescript --nsqtopic logagg --nsqd-http-address <nsq-server-ip-or-DNS>:4151
+    $ sudo docker run --name collector --volume /var/log:/var/log deepcompute/logagg logagg collect --file file=/var/log/serverstats.log:formatter=logagg.formatters.basescript --nsqtopic logagg --nsqd-http-address <nsq-server-ip-or-DNS>:4151
     ```
     - **Note**: Replace **<nsq-server-ip-or-DNS>** with the ip of `nsq` server eg.: **192.168.0.211**
     - **Note**: **--volume** argument is to mount local directory of log file into `Docker` `container`
@@ -322,7 +322,7 @@ $ python
 - You can see the basic format of record like below:
 ```json
 {
-  "_id" : ObjectId("some_id"),
+  "_id" : "20180301T065838_f7e042841d1d11e8bcf1000c2925b24d",
   "level" : "info",
   "timestamp" : "isoformat_time. Ex: 2017-08-01T07:32:24.183981Z",
   "data" : {},
@@ -332,7 +332,6 @@ $ python
   "event" : "default_event",
   "file" : "/path/to/log/file",
   "type" : "log | metric"
-  "id" : "20180301T065838_f7e042841d1d11e8bcf1000c2925b24d"
 }
 ```
 
@@ -390,8 +389,82 @@ time                request_time
 |MongoDBForwarder|`--target forwarder=logagg.forwarders.MongoDBForwarder:host=<mongoDB-server-ip>:port=<mongod-port-number>:user=<user-name>:password=<passwd>:db=<db-name>:collection=<collection name>`|
 |InfluxDBForwarder|`--target forwarder=logagg.forwarders.InfluxDBForwarder:host=<influxDB-server-ip>:port=<influxd-port-number>:user=<user-name>:password=<passwd>:db=<db-name>:collection=nothing`|
 
+**Note:** For using multiple forwarders use the format ``--taget <forwarder1> <forwarder2>`` and not ``--taget <forwarder1> --taget <forwarder2>``
+
+### How to create and use custom formatters for log files
+#### Step 1: make a directory and append it's path to evironment variable $PYTHONPATH
+```bash
+$ echo $PYTHONPATH
+
+$ mkdir customformatters
+$ #Now append the path to $PYTHONPATH
+$ export PYTHONPATH=$PYTHONPATH:/home/path/to/customformatters/
+
+$ echo $PYTHONPATH
+:/home/path/to/customformatters
+```
+#### Step 2: Create a another dierctory and put your formatter file(s) inside it.
+
+```bash
+$ cd customformatters/
+$ mkdir myformatters
+$ cd myformatters/
+$ touch __init__.py
+$ touch formatters.py
+$ echo 'import formatters' >> __init__.py
+$ #Now write your formatter functions inside the formatters.py file
+```
+#### Step 3: Write your formatter functions inside the formatters.py file
+
+**Important:**
+1. Your formatter function should return a dict() `datatype`
+2. The 'dict()' should only contain keys which are mentioned in the above [log structure](https://hackmd.io/qPzydtUJR-iE4BdsPUAkZg?both#Features).
+3. Sample formatter functions:
+    ```python
+    import json 
+    import re
+
+    sample_log_line = '2018-02-07T06:37:00.297610Z [Some_event] [Info] [Hello_there]'
+
+    def sample_formatter(log_line):
+        log = re.sub('[\[+\]]', '',log_line).split(' ')
+        timestamp = log[0]
+        event = log[1]
+        level = log[2]
+        data = dict({'message': log[3]})
+
+        return dict(timestamp = timestamp,
+                     event = event,
+                     level = level,
+                     data = data,
+                    )
+     ```
+    To see more examples, look [here](https://github.com/deep-compute/logagg/blob/master/logagg/formatters.py) 
+4. Check if the custom handler works in `python interpreter` like for logagg.
+    ```python
+    >>> import myformatters
+    >>> sample_log_line = '2018-02-07T06:37:00.297610Z [Some_event] [Info] [Hello_there]'
+    >>> output = myformatters.formatters.sample_formatter(sample_log_line)
+    >>> from pprint import pprint
+    >>> pprint(output)
+    {'data': {'message': 'Hello_there'},
+     'event': 'Some_event',
+     'level': 'Info',
+     'timestamp': '2018-02-07T06:37:00.297610Z'}
+    ```
+5. pseudo logagg collect commands:
+    ```
+    $ sudo logagg collect --file file=logfile.log:myformatters.formatters.sample_formatter --nsqtopic logagg --nsqd-http-address localhost:4151
+    ```
+    **or**
+    docker run 
+    ```
+    $ sudo docker run --name collector --env PYTHONPATH=$PYTHONPATH --volume /var/log:/var/log deepcompute/logagg logagg collect --file file=logfile.log:myformatters.formatters.sample_formatter --nsqtopic logagg --nsqd-http-address <nsq-server-ip-or-DNS>:4151
+    ```
+
 ---
-## Build on it
+
+## Build on logagg
 
 You're more than welcome to hack on this:-)
 
