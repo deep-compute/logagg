@@ -10,10 +10,10 @@ import datetime
 from operator import attrgetter
 import traceback
 
-from logagg import util
-from logagg.formatters import RawLog
 from deeputil import AttrDict, keeprunning
 from pygtail import Pygtail
+from logagg import util
+from logagg.formatters import RawLog
 
 # TODO
 '''
@@ -21,19 +21,6 @@ After a downtime of collector, pygtail is missing logs from rotational files
 '''
 
 class LogCollector(object):
-    '''
-    Instantiate LogCollector class with an object
-
-    >>> from logagg import LogCollector
-    >>> lc = LogCollector('~/Desktop/log_samples/access_new.log:logagg.formatters.nginx_access', \
-                                'test_topic', 'localhost:4151', 10000, 30)
-    >>> lc.log
-    <deeputil.misc.Dummy object at 0x7fc902bb7c10>
-    >>> lc.nsqd_http_address
-    'localhost:4151'
-    >>> lc.nsq_max_depth
-    10000
-    '''
     DESC = 'Collects the log information and sends to NSQTopic'
 
     QUEUE_MAX_SIZE = 2000           # Maximum number of messages in in-mem queue
@@ -46,7 +33,21 @@ class LogCollector(object):
     HOST = socket.gethostname()
     HEARTBEAT_RESTART_INTERVAL = 30 # Wait time if heartbeat sending stops
     #TODO check for structure in validate_log_format
-    STRUCT = ('id', 'timestamp', 'file', 'host', 'formatter', 'raw', 'type', 'level')
+    
+    LOG_STRUCTURE = {
+        'id': basestring,
+        'timestamp': basestring,
+        'file' : basestring,
+        'host': basestring,
+        'formatter' : basestring,
+        'raw' : basestring,
+        'type' : basestring,
+        'level' : basestring,
+        'event' : basestring,
+        'data' : dict,
+        'error' : basestring,
+        'error_tb' : basestring,
+    }
 
     def __init__(self, fpaths, nsq_sender,
                 heartbeat_interval, log=util.DUMMY_LOGGER):
@@ -61,11 +62,22 @@ class LogCollector(object):
         self.formatters = {}
         self.queue = Queue.Queue(maxsize=self.QUEUE_MAX_SIZE)
 
+    def _remove_redundancy(self, log):
+        for key in log:
+            if key in log and key in log['data']:
+                log[key] = log['data'].pop(key)
+        return log
+
+    def validate_log_format(self, log):
+        for key in log:
+            assert (key in self.LOG_STRUCTURE)
+            assert isinstance(log[key], self.LOG_STRUCTURE[key])
+
     @keeprunning(LOG_FILE_POLL_INTERVAL, on_error=util.log_exception)
     def collect_log_lines(self, log_file):
         L = log_file
         fpath = L['fpath']
-        self.log.debug('Tracking log file for log lines', fpath=fpath)
+        self.log.debug('tracking_file_for_log_lines', fpath=fpath)
 
         freader = Pygtail(fpath)
         for line_info in freader:
@@ -75,6 +87,7 @@ class LogCollector(object):
                     file=fpath,
                     host=self.HOST,
                     formatter=L['formatter'],
+                    event='event',
                     raw=line,
                     timestamp=datetime.datetime.utcnow().isoformat(),
                     type='log',
@@ -90,6 +103,7 @@ class LogCollector(object):
                     _log = util.load_object(formatter)(raw_log)
 
                 log.update(_log)
+                log = self._remove_redundancy(log)
                 self.validate_log_format(log)
             except (SystemExit, KeyboardInterrupt) as e: raise
             except:
@@ -99,26 +113,12 @@ class LogCollector(object):
 
             self.queue.put(dict(log=json.dumps(log),
                                 freader=freader, line_info=line_info))
-            self.log.debug("TALLY: PUT into self.queue")
+            self.log.debug("TALLY:PUT_into_self.queue")
 
         while not freader.is_fully_acknowledged():
             t = self.PYGTAIL_ACK_WAIT_TIME
-            self.log.debug('Waiting for pygtail to fully ack', wait_time=t)
+            self.log.debug('waiting_for_pygtail_to_fully_ack', wait_time=t)
             time.sleep(t)
-
-    def validate_log_format(self, log):
-        # FIXME: test level, type also
-        # FIXME: test value of level, type, timestamp
-        assert isinstance(log, dict)
-        assert isinstance(log['id'], basestring)
-        assert isinstance(log['data'], dict)
-        assert isinstance(log['timestamp'], basestring)
-        assert isinstance(log['file'], str)
-        assert isinstance(log['host'], basestring)
-        assert isinstance(log['formatter'], basestring)
-        assert isinstance(log['raw'], basestring)
-        assert isinstance(log['type'], basestring)
-        assert isinstance(log['level'], basestring)
 
     def _get_msgs_from_queue(self, msgs, msgs_nbytes, timeout):
         read_from_q = False
@@ -128,27 +128,27 @@ class LogCollector(object):
             try:
                 msg = self.queue.get(block=True, timeout=self.QUEUE_READ_TIMEOUT)
                 read_from_q = True
-                self.log.debug("TALLY: GET from self.queue")
+                self.log.debug("TALLY:GET_from_self.queue")
 
                 msgs.append(msg)
                 msgs_nbytes += len(msg['log'])
 
                 if msgs_nbytes > self.NBYTES_TO_SEND: # FIXME: class level const
-                    self.log.debug('Msg bytes read from in-queue got exceeded')
+                    self.log.debug('msg_bytes_read_inQueue_exceeded')
                     break
                 #FIXME condition never met
                 if time.time() - ts >= timeout and msgs:
-                    self.log.debug('Msg reading timeout from in-queue got exceeded')
+                    self.log.debug('msg_reading_timeout_from_inQueue_got_exceeded')
                     break
                     # TODO: What if a single log message itself is bigger than max bytes limit?
             except Queue.Empty:
-                self.log.debug('QUEUE empty')
+                self.log.debug('queue_empty')
                 time.sleep(self.QUEUE_READ_TIMEOUT)
                 if not msgs:
                     continue
                 else:
                     return msgs, msgs_nbytes, read_from_q
-        self.log.debug('Got msgs from in-queue')
+        self.log.debug('got_msgs_from_inQueue')
         return msgs, msgs_nbytes, read_from_q
 
 
@@ -171,13 +171,13 @@ class LogCollector(object):
             is_max_time_elapsed = time_since_last_push >= self.MAX_SECONDS_TO_PUSH
 
             should_push = len(msgs) > 0 and (is_max_time_elapsed or have_enough_msgs)
-            self.log.debug('desciding wheather to push', should_push=should_push)
+            self.log.debug('desciding_to_push', should_push=should_push)
 
         try:
-            self.log.debug('trying to push to nsq', msgs_length=len(msgs))
+            self.log.debug('trying_to_push_to_nsq', msgs_length=len(msgs))
             self.nsq_sender.handle_logs(msgs)
             self.confirm_success(msgs)
-            self.log.debug('pushed to nsq', msgs_length=len(msgs))
+            self.log.debug('pushed_to_nsq', msgs_length=len(msgs))
             msgs = []
             state.last_push_ts = time.time()
         except (SystemExit, KeyboardInterrupt): raise
@@ -220,7 +220,7 @@ class LogCollector(object):
                     if log_key not in self.log_reader_threads:
                         # There is no existing thread tracking this log file. Start one
                         self.log_reader_threads[log_key] = util.start_daemon_thread(self.collect_log_lines, (log_f,))
-                        self.log.info('Started collect_log_lines thread ', log_key=log_key)
+                        self.log.info('started_collect_log_lines_thread', log_key=log_key)
                     state.files_tracked.append(fpath)
         time.sleep(self.SCAN_FPATTERNS_INTERVAL)
 

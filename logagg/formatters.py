@@ -9,12 +9,12 @@ def docker_log_file_driver(line):
     log = json.loads(json.loads(line)['msg'])
     if 'formatter' in log.get('extra'):
         return RawLog(dict(formatter=log.get('extra').get('formatter'),
-                            raw=log.get('message'),
+                            raw=str(log.get('message')),
                             host=log.get('host'),
                             timestamp=log.get('timestamp'),
                             )
                         )
-    return dict(timestamp=log.get('timestamp'), data=log)
+    return dict(timestamp=log.get('timestamp'), data=log, type='log')
 
 def nginx_access(line):
     '''
@@ -35,10 +35,12 @@ def nginx_access(line):
               u'remote_user': u'-',
               u'request': u'GET / HTTP/1.1',
               u'request_time': 0.0,
-              u'status': 200.0,
+              u'status': u'200',
               u'timestamp': '2018-01-05T09:31:39.201000',
               u'upstream_response_time': 0.0},
-     'timestamp': '2018-01-05T09:31:39.201000'}
+     'event': u'GET_request',
+     'timestamp': '2018-01-05T09:31:39.201000',
+     'type': 'metric'}
 
     >>> input_line2 = '{ \
                     "remote_addr": "192.158.0.51","remote_user": "-","timestamp": "1515143686.415", \
@@ -56,10 +58,12 @@ def nginx_access(line):
               u'remote_user': u'-',
               u'request': u'POST /mpub?topic=heartbeat HTTP/1.1',
               u'request_time': 0.0,
-              u'status': 404.0,
+              u'status': u'404',
               u'timestamp': '2018-01-05T09:14:46.415000',
               u'upstream_response_time': 0.0},
-     'timestamp': '2018-01-05T09:14:46.415000'}
+     'event': u'POST_request',
+     'timestamp': '2018-01-05T09:14:46.415000',
+     'type': 'metric'}
     '''
 #TODO Handle nginx error logs
     log = json.loads(line)
@@ -67,11 +71,17 @@ def nginx_access(line):
     log.update({'timestamp':timestamp_iso})
     if '-' in log.get('upstream_response_time'):
         log['upstream_response_time'] = 0.0
-    log = convert_str2int(log)
+    log['body_bytes_sent'] = float(log['body_bytes_sent'])
+    log['request_time'] = float(log['request_time'])
+    log['upstream_response_time'] = float(log['upstream_response_time'])
+    
+    event = log['request'].split(' ')[0] + '_request'
 
     return dict(
         timestamp=log.get('timestamp',' '),
-        data=log
+        data=log,
+        type='metric',
+        event=event
     )
 
 def mongodb(line):
@@ -85,7 +95,8 @@ def mongodb(line):
               'message': 'shutting down replication subsystems',
               'severity': 'I',
               'timestamp': '2017-08-17T07:56:33.489+0200'},
-     'timestamp': '2017-08-17T07:56:33.489+0200'}
+     'timestamp': '2017-08-17T07:56:33.489+0200',
+     'type': 'log'}
 
     >>> input_line2 = '2017-08-17T07:56:33.515+0200 W NETWORK  [initandlisten] No primary detected for set confsvr_repl1'
     >>> output_line2 = mongodb(input_line2)
@@ -95,7 +106,8 @@ def mongodb(line):
               'message': 'No primary detected for set confsvr_repl1',
               'severity': 'W',
               'timestamp': '2017-08-17T07:56:33.515+0200'},
-     'timestamp': '2017-08-17T07:56:33.515+0200'}
+     'timestamp': '2017-08-17T07:56:33.515+0200',
+     'type': 'log'}
     '''
 
     keys = ['timestamp', 'severity', 'component', 'context', 'message']
@@ -104,20 +116,10 @@ def mongodb(line):
 
     return dict(
         timestamp=values[0],
-        data=mongodb_log
+        data=mongodb_log,
+        type='log',
     )
 
-def convert_str2int(data):
-    '''
-    >>> event = {"event": "api,fn=functioname,host=localhost,name=Server,success=True c_invoked=1, t_duration_count=1,t_duration_lower=0.0259876251221,t_duration_mean=0.0259876251221, t_duration_sum=0.0259876251221,t_duration_upper=0.0259876251221 1494850222862"}
-    >>> convert_str2int(event)
-    {'event': 'api,fn=functioname,host=localhost,name=Server,success=True c_invoked=1, t_duration_count=1,t_duration_lower=0.0259876251221,t_duration_mean=0.0259876251221, t_duration_sum=0.0259876251221,t_duration_upper=0.0259876251221 1494850222862'}
-    '''
-    for key, val in data.items():
-        if isinstance(val, basestring):
-            if val.isdigit() or val.replace('.', '', 1).isdigit() or val.lstrip('-+').replace('.', '', 1).isdigit():
-                data[key] = float(val)
-    return data
 
 def django(line):
     '''
@@ -129,6 +131,7 @@ def django(line):
               'logname': '[app.middleware_log_req:50]',
               'message': 'View func called:{"exception": null,"processing_time": 0.00011801719665527344, "url": "<url>",host": "localhost", "user": "testing", "post_contents": "", "method": "POST" }',
               'timestamp': '2017-08-23T11:35:25'},
+     'level': 'INFO',
      'timestamp': '2017-08-23T11:35:25'}
 
     >>> input_line2 = '[22/Sep/2017 06:32:15] INFO [app.function:6022] {"UUID": "c47f3530-9f5f-11e7-a559-917d011459f7", "timestamp":1506061932546, "misc": {"status": 200, "ready_state": 4, "end_time_ms": 1506061932546, "url": "/api/function?", "start_time_ms": 1506061932113, "response_length": 31, "status_message": "OK", "request_time_ms": 433}, "user": "root", "host_url": "localhost:8888", "message": "ajax success"}'
@@ -150,6 +153,7 @@ def django(line):
                           u'timestamp': 1506061932546,
                           u'user': u'root'},
               'timestamp': '2017-09-22T06:32:15'},
+     'level': 'INFO',
      'timestamp': '2017-09-22T06:32:15'}
 
         Case2:
@@ -182,7 +186,8 @@ def django(line):
 
         return dict(
                 timestamp=data['timestamp'],
-                data=data
+                level=data['loglevel'],
+                data=data,
             )
     else:
         return dict(
@@ -205,6 +210,7 @@ def basescript(line):
               u'level': u'warning',
               u'timestamp': u'2018-02-07T06:37:00.297610Z',
               u'type': u'log'},
+     'event': u'exited via keyboard interrupt',
      'id': u'20180207T063700_4d03fe800bd111e89ecb96000007bc65',
      'level': u'warning',
      'timestamp': u'2018-02-07T06:37:00.297610Z',
@@ -219,6 +225,7 @@ def basescript(line):
         id=log['id'],
         type=log['type'],
         level=log['level'],
+        event=log['event']
     )
 
 def elasticsearch(line):
@@ -231,13 +238,16 @@ def elasticsearch(line):
     >>> pprint.pprint(output_line)
     {'data': {'garbage_collector': 'gc',
               'gc_count': 296816.0,
-              'level': 'WARN ',
+              'level': 'WARN',
               'message': 'o.e.m.j.JvmGcMonitorService',
               'plugin': 'Glsuj_2',
               'query_time_ms': 1200.0,
               'resp_time_ms': 1300.0,
               'timestamp': '2017-08-30T06:27:19,158'},
-     'timestamp': '2017-08-30T06:27:19,158'}
+     'event': 'o.e.m.j.JvmGcMonitorService',
+     'level': 'WARN ',
+     'timestamp': '2017-08-30T06:27:19,158',
+     'type': 'metric'}
 
     Case 2:
     [2017-09-13T23:15:00,415][WARN ][o.e.i.e.Engine           ] [Glsuj_2] [filebeat-2017.09.09][3] failed engine [index]
@@ -264,11 +274,20 @@ def elasticsearch(line):
                 continue
 
         data = dict(zip(keys,values))
-        data = convert_str2int(data)
-
+        if 'level' in data and data['level'][-1] == ' ':
+            data['level'] = data['level'][:-1]
+        if 'gc_count' in data:
+            data['gc_count'] = float(data['gc_count'])
+        event = data['message']
+        level=values[1]
+        timestamp=values[0]
+        
         return dict(
-                timestamp=values[0],
-                data=data
+                timestamp=timestamp,
+                level=level,
+                type='metric',
+                data=data,
+                event=event
         )
 
     else:
