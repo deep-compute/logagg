@@ -9,7 +9,7 @@ def docker_log_file_driver(line):
     log = json.loads(json.loads(line)['msg'])
     if 'formatter' in log.get('extra'):
         return RawLog(dict(formatter=log.get('extra').get('formatter'),
-                            raw=str(log.get('message')),
+                            raw=log.get('message'),
                             host=log.get('host'),
                             timestamp=log.get('timestamp'),
                             )

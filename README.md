@@ -403,23 +403,24 @@ $ export PYTHONPATH=$PYTHONPATH:/home/path/to/customformatters/
 $ echo $PYTHONPATH
 :/home/path/to/customformatters
 ```
-#### Step 2: Create a another dierctory and put your formatter file(s) inside it.
+#### Step 2: Create a another directory and put your formatter file(s) inside it.
 
 ```bash
 $ cd customformatters/
 $ mkdir myformatters
 $ cd myformatters/
-$ touch __init__.py
 $ touch formatters.py
+$ touch __init__.py
 $ echo 'import formatters' >> __init__.py
 $ #Now write your formatter functions inside the formatters.py file
 ```
 #### Step 3: Write your formatter functions inside the formatters.py file
 
-**Important:**
-1. Your formatter function should return a dict() `datatype`
-2. The 'dict()' should only contain keys which are mentioned in the above [log structure](https://hackmd.io/qPzydtUJR-iE4BdsPUAkZg?both#Features).
-3. Sample formatter functions:
+**Important:** 
+1. Only **python standard modules** can be imported in formatters.py file
+2. A formatter function should return a **dict()** `datatype`
+3. The 'dict()' should only contain keys which are mentioned in the above [log structure](https://hackmd.io/qPzydtUJR-iE4BdsPUAkZg?both#Features).
+4. Sample formatter functions:
     ```python
     import json 
     import re
@@ -439,8 +440,9 @@ $ #Now write your formatter functions inside the formatters.py file
                      data = data,
                     )
      ```
-    To see more examples, look [here](https://github.com/deep-compute/logagg/blob/master/logagg/formatters.py) 
-4. Check if the custom handler works in `python interpreter` like for logagg.
+  To see more examples, look [here](https://github.com/deep-compute/logagg/blob/master/logagg/formatters.py) 
+
+5. Check if the custom handler works in `python interpreter` like for logagg.
     ```python
     >>> import myformatters
     >>> sample_log_line = '2018-02-07T06:37:00.297610Z [Some_event] [Info] [Hello_there]'
@@ -452,7 +454,7 @@ $ #Now write your formatter functions inside the formatters.py file
      'level': 'Info',
      'timestamp': '2018-02-07T06:37:00.297610Z'}
     ```
-5. pseudo logagg collect commands:
+6. Pseudo logagg collect commands:
     ```
     $ sudo logagg collect --file file=logfile.log:myformatters.formatters.sample_formatter --nsqtopic logagg --nsqd-http-address localhost:4151
     ```
