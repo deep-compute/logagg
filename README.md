@@ -389,7 +389,7 @@ time                request_time
 |MongoDBForwarder|`--target forwarder=logagg.forwarders.MongoDBForwarder:host=<mongoDB-server-ip>:port=<mongod-port-number>:user=<user-name>:password=<passwd>:db=<db-name>:collection=<collection name>`|
 |InfluxDBForwarder|`--target forwarder=logagg.forwarders.InfluxDBForwarder:host=<influxDB-server-ip>:port=<influxd-port-number>:user=<user-name>:password=<passwd>:db=<db-name>:collection=nothing`|
 
-**Note:** For using multiple forwarders use the format ``--taget <forwarder1> <forwarder2>`` and not ``--taget <forwarder1> --taget <forwarder2>``
+**Note:** For using multiple forwarders use the format ``--target <forwarder1> <forwarder2>`` and not ``--target <forwarder1> --target <forwarder2>``
 
 ### How to create and use custom formatters for log files
 #### Step 1: make a directory and append it's path to evironment variable $PYTHONPATH
@@ -419,7 +419,7 @@ $ #Now write your formatter functions inside the formatters.py file
 **Important:** 
 1. Only **python standard modules** can be imported in formatters.py file
 2. A formatter function should return a **dict()** `datatype`
-3. The 'dict()' should only contain keys which are mentioned in the above [log structure](https://hackmd.io/qPzydtUJR-iE4BdsPUAkZg?both#Features).
+3. The 'dict()' should only contain keys which are mentioned in the above [log structure](https://github.com/deep-compute/logagg#features).
 4. Sample formatter functions:
     ```python
     import json 

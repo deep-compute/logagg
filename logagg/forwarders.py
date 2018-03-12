@@ -98,7 +98,7 @@ from influxdb.client import InfluxDBServerError
 from logagg.util import flatten_dict, is_number
 
 class InfluxDBForwarder(BaseForwarder):
-    EXCLUDE_TAGS = ["raw", "timestamp", "type", "event"]
+    EXCLUDE_TAGS = ["id","raw", "timestamp", "type", "event"]
 
     influxdb_records = []
 
