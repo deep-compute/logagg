@@ -35,9 +35,10 @@ class LogaggCommand(BaseScript):
             target_obj = target_class(**args)
             targets.append(target_obj)
 
-        nsq_receiver = Reader(self.args.nsqtopic,
-                              self.args.nsqchannel,
-                              nsqd_tcp_addresses=[self.args.nsqd_tcp_address])
+        nsq_receiver = Reader(topic=self.args.nsqtopic,
+                              channel=self.args.nsqchannel,
+                              nsqd_tcp_addresses=[self.args.nsqd_tcp_address],
+                              max_in_flight=2500,)
 
         forwarder = LogForwarder(nsq_receiver,
                                  targets,
@@ -69,9 +70,9 @@ class LogaggCommand(BaseScript):
                                  type=int, default=30,
                                  help='Time interval at which regular heartbeats to a nsqTopic "heartbeat" to know which hosts are running logagg')
 
-        forward_cmd = subcommands.add_parser(
-            'forward',
-            help='Collects all the messages from nsq and pushes to storage engine')
+        forward_cmd = subcommands.add_parser('forward',
+                                              help='Collects all the messages\
+                                              from nsq and pushes to storage engine')
         forward_cmd.set_defaults(func=self.forward)
         forward_cmd.add_argument(
             '--nsqtopic',
