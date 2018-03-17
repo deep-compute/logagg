@@ -137,7 +137,7 @@ def django(line):
     >>> input_line2 = '[22/Sep/2017 06:32:15] INFO [app.function:6022] {"UUID": "c47f3530-9f5f-11e7-a559-917d011459f7", "timestamp":1506061932546, "misc": {"status": 200, "ready_state": 4, "end_time_ms": 1506061932546, "url": "/api/function?", "start_time_ms": 1506061932113, "response_length": 31, "status_message": "OK", "request_time_ms": 433}, "user": "root", "host_url": "localhost:8888", "message": "ajax success"}'
     >>> output_line2 = django(input_line2)
     >>> pprint.pprint(output_line2)
-     {'data': {'loglevel': 'INFO',
+    {'data': {'loglevel': 'INFO',
               'logname': '[app.function:6022]',
               'message': {u'UUID': u'c47f3530-9f5f-11e7-a559-917d011459f7',
                           u'host_url': u'localhost:8888',
