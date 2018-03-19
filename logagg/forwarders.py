@@ -63,11 +63,10 @@ class MongoDBForwarder(BaseForwarder):
     def _parse_msg_for_mongodb(self, msgs):
         msgs_list = []
         #TODO: We need to do this by using iteration object.
+        msgs = [json.loads(m.body.decode(encoding='utf-8',errors='strict')) for m in msgs]
         for msg in msgs:
-            msg_body = json.loads(msg.body.decode(encoding='utf-8',
-                                   errors='strict'))
-            msg_body['_id'] = msg_body.pop('id')
-            msgs_list.append(msg_body)
+            msg['_id'] = msg.pop('id')
+            msgs_list.append(msg)
         return msgs_list
 
     def _insert_1by1(self, records):
@@ -141,6 +140,7 @@ class InfluxDBForwarder(BaseForwarder):
 
     def _parse_msg_for_influxdb(self, msgs):
         series = []
+        msgs = [json.loads(m.body.decode(encoding='utf-8',errors='strict')) for m in msgs]
 
         for msg in msgs:
             if msg.get('error') == True:

@@ -108,7 +108,6 @@ class LogForwarder(object):
 
     def _write_messages(self, msgs):
         fn = self._send_msgs_to_target
-        msgs = [json.loads(m.body) for m in msgs]
 
         jobs = []
         for t in self.targets:
