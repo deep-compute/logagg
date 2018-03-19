@@ -1,5 +1,5 @@
 import re
-import json
+import ujson as json
 import datetime
 
 class RawLog(dict): pass
@@ -142,15 +142,15 @@ def django(line):
               'message': {u'UUID': u'c47f3530-9f5f-11e7-a559-917d011459f7',
                           u'host_url': u'localhost:8888',
                           u'message': u'ajax success',
-                          u'misc': {u'end_time_ms': 1506061932546,
+                          u'misc': {u'end_time_ms': 1506061932546L,
                                     u'ready_state': 4,
                                     u'request_time_ms': 433,
                                     u'response_length': 31,
-                                    u'start_time_ms': 1506061932113,
+                                    u'start_time_ms': 1506061932113L,
                                     u'status': 200,
                                     u'status_message': u'OK',
                                     u'url': u'/api/function?'},
-                          u'timestamp': 1506061932546,
+                          u'timestamp': 1506061932546L,
                           u'user': u'root'},
               'timestamp': '2017-09-22T06:32:15'},
      'level': 'INFO',

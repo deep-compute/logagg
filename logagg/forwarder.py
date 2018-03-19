@@ -1,10 +1,12 @@
 import time
 import Queue
 from threading import Thread
+from copy import deepcopy
 from multiprocessing.pool import ThreadPool
 
 from deeputil import Dummy
 from logagg import util
+import ujson as json
 
 DUMMY_LOGGER = Dummy()
 
@@ -12,9 +14,9 @@ class LogForwarder(object):
     DESC = "Gets all the logs from nsq and stores in the storage engines"
 
 
-    SLEEP_TIME = 1
+    QUEUE_EMPTY_SLEEP_TIME = 0.1
     QUEUE_TIMEOUT = 1
-    QUEUE_MAX_SIZE = 5000
+    QUEUE_MAX_SIZE = 50000
 
     MAX_SECONDS_TO_PUSH = 1
     MAX_MESSAGES_TO_PUSH = 200
@@ -61,7 +63,7 @@ class LogForwarder(object):
                 msgs.append(msg)
 
             except Queue.Empty:
-                time.sleep(self.SLEEP_TIME)
+                time.sleep(self.QUEUE_EMPTY_SLEEP_TIME)
                 continue
 
             cur_ts = time.time()
@@ -101,16 +103,17 @@ class LogForwarder(object):
             except:
                 # FIXME: do we log the failed messages themselves somewhere?
                 self.log.exception('_send_msgs_to_target_failed',
-                        target=target.__name__, num_msgs=len(msgs))
+                        target=target, num_msgs=len(msgs))
                 time.sleep(self.WAIT_TIME_TARGET_FAILURE)
                 # FIXME: also implement some sort of backoff sleep
 
     def _write_messages(self, msgs):
         fn = self._send_msgs_to_target
-        
+        msgs = [json.loads(m.body) for m in msgs]
+
         jobs = []
         for t in self.targets:
-            jobs.append(self._pool.apply_async(fn, (t, msgs)))
-            
+            jobs.append(self._pool.apply_async(fn, (t, deepcopy(msgs))))
+
         for j in jobs:
             j.wait()

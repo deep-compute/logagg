@@ -1,6 +1,6 @@
 import abc
-import json
 
+import ujson as json
 from deeputil import keeprunning
 from logagg.util import DUMMY_LOGGER
 
@@ -64,25 +64,23 @@ class MongoDBForwarder(BaseForwarder):
         msgs_list = []
         #TODO: We need to do this by using iteration object.
         for msg in msgs:
-            msg_body = json.loads(msg.body.decode(encoding='utf-8',
-                                   errors='strict'))
-            msg_body['_id'] = msg_body.pop('id')
-            msgs_list.append(msg_body)
+            msg['_id'] = msg.pop('id')
+            msgs_list.append(msg)
         return msgs_list
 
     def _insert_1by1(self, records):
         for r in records:
             try:
-                self.collection.insert_one(r, ordered=False)
+                self.collection.update({'_id': r['_id']}, r, upsert=True)
             except pymongo.errors.OperationFailure as opfail:
                 self.log.exception('failed_to_insert_record_in_mongodb',
-                                    record=msg, tb=opfail.details)
+                                    record=r, tb=opfail.details)
 
     def handle_logs(self, msgs):
         msgs_list = self._parse_msg_for_mongodb(msgs)
         try:
             self.log.debug('inserting_msgs_mongodb')
-            self.collection.insert_many([msg for msg in msgs_list], ordered=False)
+            self.collection.insert_many(msgs_list, ordered=False)
             self.log.info('logs_inserted_into_mongodb', num_msgs=len(msgs), type='metric')
         except pymongo.errors.AutoReconnect(message='connection_to_mongodb_failed'):
             self._ensure_connection()
@@ -98,9 +96,7 @@ from influxdb.client import InfluxDBServerError
 from logagg.util import flatten_dict, is_number
 
 class InfluxDBForwarder(BaseForwarder):
-    EXCLUDE_TAGS = ["id","raw", "timestamp", "type", "event"]
-
-    influxdb_records = []
+    EXCLUDE_TAGS = set(["id", "raw", "timestamp", "type", "event", "error"])
 
     def __init__(self,
                  host, port,
@@ -123,56 +119,57 @@ class InfluxDBForwarder(BaseForwarder):
         self.influxdb_database = self.influxdb_client.create_database(self.db_name)
         self.log.info('influxdb_database_created', dbname=self.db_name)
 
-    def _tag_and_field_maker(self,event):
-        t = dict()
+    def _tag_and_field_maker(self, event):
+
+        data = event.pop('data')
+        data = flatten_dict({'data': data})
+
+        t = dict((k, event[k]) for k in event if k not in self.EXCLUDE_TAGS)
         f = dict()
-        for key in event:
-            if key not in self.EXCLUDE_TAGS and '_' not in key.split('.'):
-                if is_number(event[key]):
-                    f[key] = event[key]
-                else:
-                    t[key] = event[key]
+
+        for k in data:
+            v = data[k]
+
+            if is_number(v):
+                f[k] = v
+            else:
+                t[k] = v
+
         return t, f
 
-    def parse_msg_for_influxdb(self, msgs):
-        #TODO: We need to do this by using iteration object.
+    def _parse_msg_for_influxdb(self, msgs):
         series = []
+
         for msg in msgs:
-            if msg.get('error'):
+            if msg.get('error') == True:
                 continue
+
             if msg.get('type').lower() == 'metric':
                 time = msg.get('timestamp')
                 measurement = msg.get('event')
-                event = flatten_dict(msg)
-                tags, fields = self._tag_and_field_maker(event)
+                tags, fields = self._tag_and_field_maker(msg)
                 pointvalues = {
-                                "time": time,
-                                "measurement": measurement,
-                                "fields": fields,
-                                "tags": tags}
+                        "time": time,
+                        "measurement": measurement,
+                        "fields": fields,
+                        "tags": tags }
                 series.append(pointvalues)
+
         return series
 
     def handle_logs(self, msgs):
-        msgs_list = []
-        for msg in msgs:
-            msg_body = json.loads(msg.body.decode(encoding='utf-8',errors='strict'))
-            msg_body['id'] = msg_body.pop('id')
-            msgs_list.append(msg_body)
 
         self.log.debug('parsing_of_metrics_started')
-        records = self.parse_msg_for_influxdb(msgs_list)
-        self.influxdb_records.extend(records)
+        records = self._parse_msg_for_influxdb(msgs)
         self.log.debug('parsing_of_metrics_completed')
 
         try:
             self.log.debug('inserting_the_metrics_into_influxdb')
-            self.influxdb_client.write_points(self.influxdb_records)
+            self.influxdb_client.write_points(records)
             self.log.info('metrics_inserted_into_influxdb',
-                           length=len(self.influxdb_records),
+                           length=len(records),
                            type='metric')
-            self.influxdb_records = []
         except (InfluxDBClientError, InfluxDBServerError) as e:
             self.log.exception('failed_to_insert metric',
-                                record=self.influxdb_records,
-                                length=len(self.influxdb_records))
+                                record=records,
+                                length=len(records))
