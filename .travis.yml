@@ -1,12 +1,33 @@
 language: python
 python:
 - '2.7'
+
+sudo: required
+
+# start docker
+services:
+- docker
+
 install:
 - easy_install https://github.com/deep-compute/pygtail/tarball/master/#egg=pygtail-0.6.1
 - pip install .
+
+# environment variable
+env:
+  global:
+    - DOCKER_USER=docker_username
+    - DOCKER_PASS=docker_password
+
+# set travis env variable as ours env variable
+before_script:
+- env > .env
+
+# Run the doctest
 script:
 - python setup.py test
+
 deploy:
+
   - provider: releases
     skip_cleanup: true
     api-key:
@@ -17,6 +38,7 @@ deploy:
         branch: master
         repo: deep-compute/logagg
     # test pypi
+
   - provider: pypi
     distributions: "sdist bdist_wheel"
     server: https://testpypi.python.org/pypi
@@ -28,6 +50,7 @@ deploy:
       branch: master
       tags: false
     # pypi
+
   - provider: pypi
     distributions: "sdist bdist_wheel"
     skip_cleanup: true
@@ -39,3 +62,11 @@ deploy:
       # only when there is a release it will update pypi
       tags: true
 
+# creating docker image of packages and
+# pushing it to docker hub
+- provider: script
+  skip_cleanup: true
+  script: docker login -u "$DOCKER_USER" -p "$DOCKER_PASS" && cd && chmod 777 -R .docker/ && cd - && docker build -t deepcompute/logagg . && docker push deepcompute/docker
+  on:
+    branch: master
+    tags: true

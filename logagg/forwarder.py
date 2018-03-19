@@ -1,6 +1,7 @@
 import time
 import Queue
 from threading import Thread
+from copy import deepcopy
 from multiprocessing.pool import ThreadPool
 
 from deeputil import Dummy
@@ -108,10 +109,11 @@ class LogForwarder(object):
 
     def _write_messages(self, msgs):
         fn = self._send_msgs_to_target
+        msgs = [json.loads(m.body) for m in msgs]
 
         jobs = []
         for t in self.targets:
-            jobs.append(self._pool.apply_async(fn, (t, msgs)))
+            jobs.append(self._pool.apply_async(fn, (t, deepcopy(msgs))))
 
         for j in jobs:
             j.wait()
