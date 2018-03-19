@@ -1,44 +1,22 @@
 language: python
 python:
 - '2.7'
-
-sudo: required
-
-# start docker
-services:
-- docker
-
 install:
 - easy_install https://github.com/deep-compute/pygtail/tarball/master/#egg=pygtail-0.6.1
 - pip install .
-
-# environment variable
-env:
-  global:
-    - DOCKER_USER=docker_username
-    - DOCKER_PASS=docker_password
-
-# set travis env variable as ours env variable
-before_script:
-- env > .env
-
-# Run the doctest
 script:
 - python setup.py test
-
 deploy:
-
   - provider: releases
     skip_cleanup: true
     api-key:
       secure: Rxl45qbTHWIbOhst3PS60ETfW5wDByxp0xv4ZbtgRGe4SPvHtOLHRNGiajsQX37pgUFF9ALcCseY2cTk46jNEA1jOzFx4DDSKyH+Wu4H5F4M8JDBBlIsvsgezumLsYMqOL18caZA8J84N9UyuzgdPBDb0B0mMclRa9xRaxWncrUZgXwW9r3N2zU1LvGtd0Su4zLXXP6HC6mKHdOOaNSDONqaesx1njYTGr5fbWy7IXrjSg75wWCtHW1dKDPXmyyWZomwpmhURYfYXn/o9lRaXSDpLWx4xTsbJQdG9EiSPm5fLjfv9tZTxIF7jB0tTrOB63gGAgrLu0zC5Z5MJ1Y0+sbotI8eySI4w0GTffhi4WQjTTyO02vgPuSCm9JV5aW+YeNJtSncEgaVgsuUmZUiWdqMsvPG+bqOjh/i0eIkHr/v7cyf3HndFieZH9H3XdlEDtyr4SRExQSjG+be6mcGOJMWMrXervcW6kGP3pcX7EWgrFxnkz9lSgx/0meNMP4JDo8pZWg50b0xpni3zUcweTgCIeYUBd5aIKUvPaCqSHC1BAyZI5z3Cvdlq0tjCS726drQcV4OJNjrnmb301/K6MBbXhAsyhbkB1NpUZ0k0ZwmGxQ7iE4N1pod2BQbTPxjNUL1KNQJXFvjr9Clrw9Arqo6X9S9t//GP2DDl5Ke5KQ=
-    name: logagg-0.2.8
-    tag_name: 0.2.8
+    name: logagg-0.2.7
+    tag_name: 0.2.7
     on:
         branch: master
         repo: deep-compute/logagg
     # test pypi
-
   - provider: pypi
     distributions: "sdist bdist_wheel"
     server: https://testpypi.python.org/pypi
@@ -50,7 +28,6 @@ deploy:
       branch: master
       tags: false
     # pypi
-
   - provider: pypi
     distributions: "sdist bdist_wheel"
     skip_cleanup: true
@@ -62,11 +39,3 @@ deploy:
       # only when there is a release it will update pypi
       tags: true
 
-# creating docker image of packages and
-# pushing it to docker hub
-- provider: script
-  skip_cleanup: true
-  script: docker login -u "$DOCKER_USER" -p "$DOCKER_PASS" && cd && chmod 777 -R .docker/ && cd - && docker build -t deepcompute/logagg . && docker push deepcompute/docker
-  on:
-    branch: master
-    tags: true

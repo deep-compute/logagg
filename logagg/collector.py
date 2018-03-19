@@ -1,7 +1,7 @@
 import os
 import sys
 import time
-import ujson as json
+import json
 import glob
 import uuid
 import Queue
@@ -24,16 +24,16 @@ class LogCollector(object):
     DESC = 'Collects the log information and sends to NSQTopic'
 
     QUEUE_MAX_SIZE = 2000           # Maximum number of messages in in-mem queue
-    NBYTES_TO_SEND = 5 * (1024**2)  # Number of bytes from in-mem queue minimally required to push
+    NBYTES_TO_SEND = 5000000        # Number of bytes from in-mem queue minimally required to push
     MAX_SECONDS_TO_PUSH = 1         # Wait till this much time elapses before pushing
     LOG_FILE_POLL_INTERVAL = 0.25   # Wait time to pull log file for new lines added
     QUEUE_READ_TIMEOUT = 1          # Wait time when doing blocking read on the in-mem q
-    PYGTAIL_ACK_WAIT_TIME = 0.05     # TODO: Document this
+    PYGTAIL_ACK_WAIT_TIME = 0.05    # TODO: Document this
     SCAN_FPATTERNS_INTERVAL = 30    # How often to scan filesystem for files matching fpatterns
     HOST = socket.gethostname()
     HEARTBEAT_RESTART_INTERVAL = 30 # Wait time if heartbeat sending stops
     #TODO check for structure in validate_log_format
-
+    
     LOG_STRUCTURE = {
         'id': basestring,
         'timestamp': basestring,
@@ -45,7 +45,7 @@ class LogCollector(object):
         'level' : basestring,
         'event' : basestring,
         'data' : dict,
-        'error' : bool,
+        'error' : basestring,
         'error_tb' : basestring,
     }
 
@@ -83,7 +83,7 @@ class LogCollector(object):
         for line_info in freader:
             line = line_info['line'][:-1] # remove new line char at the end
             log = dict(
-                    id=None,
+                    id=uuid.uuid1().hex,
                     file=fpath,
                     host=self.HOST,
                     formatter=L['formatter'],
@@ -92,7 +92,6 @@ class LogCollector(object):
                     timestamp=datetime.datetime.utcnow().isoformat(),
                     type='log',
                     level='debug',
-                    error= False,
                   )
 
             try:
@@ -104,8 +103,6 @@ class LogCollector(object):
                     _log = util.load_object(formatter)(raw_log)
 
                 log.update(_log)
-                if 'id' not in log:
-                    log['id'] = uuid.uuid1().hex
                 log = self._remove_redundancy(log)
                 self.validate_log_format(log)
             except (SystemExit, KeyboardInterrupt) as e: raise
@@ -116,7 +113,7 @@ class LogCollector(object):
 
             self.queue.put(dict(log=json.dumps(log),
                                 freader=freader, line_info=line_info))
-            self.log.debug('tally:put_into_self.queue', size=self.queue.qsize())
+            self.log.debug("TALLY:PUT_into_self.queue")
 
         while not freader.is_fully_acknowledged():
             t = self.PYGTAIL_ACK_WAIT_TIME
@@ -131,16 +128,17 @@ class LogCollector(object):
             try:
                 msg = self.queue.get(block=True, timeout=self.QUEUE_READ_TIMEOUT)
                 read_from_q = True
-                self.log.debug("tally:get_from_self.queue")
+                self.log.debug("TALLY:GET_from_self.queue")
+
                 msgs.append(msg)
                 msgs_nbytes += len(msg['log'])
 
-                if msgs_nbytes > self.NBYTES_TO_SEND: 
-                    self.log.debug('msg_bytes_read_mem_queue_exceeded')
+                if msgs_nbytes > self.NBYTES_TO_SEND: # FIXME: class level const
+                    self.log.debug('msg_bytes_read_inQueue_exceeded')
                     break
                 #FIXME condition never met
                 if time.time() - ts >= timeout and msgs:
-                    self.log.debug('msg_reading_timeout_from_mem_queue_got_exceeded')
+                    self.log.debug('msg_reading_timeout_from_inQueue_got_exceeded')
                     break
                     # TODO: What if a single log message itself is bigger than max bytes limit?
             except Queue.Empty:
@@ -150,7 +148,7 @@ class LogCollector(object):
                     continue
                 else:
                     return msgs, msgs_nbytes, read_from_q
-        self.log.debug('got_msgs_from_mem_queue')
+        self.log.debug('got_msgs_from_inQueue')
         return msgs, msgs_nbytes, read_from_q
 
 
@@ -162,21 +160,18 @@ class LogCollector(object):
         should_push = False
 
         while not should_push:
+            self.log.debug('should_push', is_true=should_push)
             cur_ts = time.time()
-            self.log.debug('should_push', should_push=should_push)
             time_since_last_push = cur_ts - state.last_push_ts
 
-            msgs, msgs_nbytes, read_from_q = self._get_msgs_from_queue(msgs,
-                                                                        msgs_nbytes,
-                                                                        self.MAX_SECONDS_TO_PUSH)
+            msgs, msgs_nbytes, read_from_q = self._get_msgs_from_queue(msgs, msgs_nbytes,
+                        self.MAX_SECONDS_TO_PUSH)
 
             have_enough_msgs = msgs_nbytes >= self.NBYTES_TO_SEND
             is_max_time_elapsed = time_since_last_push >= self.MAX_SECONDS_TO_PUSH
 
             should_push = len(msgs) > 0 and (is_max_time_elapsed or have_enough_msgs)
-            self.log.debug('desciding_to_push', should_push=should_push,
-                            time_since_last_push=time_since_last_push,
-                            msgs_nbytes=msgs_nbytes)
+            self.log.debug('desciding_to_push', should_push=should_push)
 
         try:
             self.log.debug('trying_to_push_to_nsq', msgs_length=len(msgs))
@@ -190,19 +185,11 @@ class LogCollector(object):
             if read_from_q: self.queue.task_done()
 
     def confirm_success(self, msgs):
-        ack_fnames = set()
-
-        for msg in reversed(msgs):
+        for msg in msgs:
             freader = msg['freader']
-            fname = freader.filename
-
-            if fname in ack_fnames:
-                continue
-
-            ack_fnames.add(fname)
             freader.update_offset_file(msg['line_info'])
 
-    @keeprunning(SCAN_FPATTERNS_INTERVAL,on_error=util.log_exception)
+    @keeprunning(SCAN_FPATTERNS_INTERVAL, on_error=util.log_exception)
     def _scan_fpatterns(self, state):
         '''
         fpaths = 'file=/var/log/nginx/access.log:formatter=logagg.formatters.nginx_access'
@@ -214,27 +201,26 @@ class LogCollector(object):
             # TODO code for scanning fpatterns for the files not yet present goes here
             fpaths = glob.glob(fpattern)
             # Load formatter_fn if not in list
-            for fpath in fpaths:
-                if fpath not in state.files_tracked:
-                    try:
-                        formatter_fn = self.formatters.get(formatter,
-                                      util.load_object(formatter))
-                        self.log.info('found_formatter_fn', fn=formatter)
-                        self.formatters[formatter] = formatter_fn
-                    except (SystemExit, KeyboardInterrupt): raise
-                    except (ImportError, AttributeError):
-                        self.log.exception('formatter_fn_not_found', fn=formatter)
-                        sys.exit(-1)
-                    # Start a thread for every file
+            if fpaths and fpaths[0] not in state.files_tracked:
+                try:
+                    formatter_fn = self.formatters.get(formatter,
+                                  util.load_object(formatter))
+                    self.log.info('found_formatter_fn', fn=formatter)
+                    self.formatters[formatter] = formatter_fn
+                except (SystemExit, KeyboardInterrupt): raise
+                except (ImportError, AttributeError):
+                    self.log.exception('formatter_fn_not_found', fn=formatter)
+                    sys.exit(-1)
+                # Start a thread for every file
+                for fpath in fpaths:
                     self.log.info('found_log_file', log_file=fpath)
                     log_f = dict(fpath=fpath, fpattern=fpattern,
                                     formatter=formatter, formatter_fn=formatter_fn)
                     log_key = (fpath, fpattern, formatter)
                     if log_key not in self.log_reader_threads:
-                        self.log.info('starting_collect_log_lines_thread', log_key=log_key)
-                        #self.collect_log_lines(log_f)
                         # There is no existing thread tracking this log file. Start one
                         self.log_reader_threads[log_key] = util.start_daemon_thread(self.collect_log_lines, (log_f,))
+                        self.log.info('started_collect_log_lines_thread', log_key=log_key)
                     state.files_tracked.append(fpath)
         time.sleep(self.SCAN_FPATTERNS_INTERVAL)
 
@@ -251,7 +237,6 @@ class LogCollector(object):
 
     def start(self):
         state = AttrDict(files_tracked=list())
-        #self._scan_fpatterns(state)
         util.start_daemon_thread(self._scan_fpatterns, (state,))
 
         state = AttrDict(last_push_ts=time.time())
