@@ -4,23 +4,9 @@ python:
 
 sudo: required
 
-# start docker
-services:
-- docker
-
 install:
 - easy_install https://github.com/deep-compute/pygtail/tarball/master/#egg=pygtail-0.6.1
 - pip install .
-
-# environment variable
-env:
-  global:
-    - DOCKER_USER=docker_username
-    - DOCKER_PASS=docker_password
-
-# set travis env variable as ours env variable
-before_script:
-- env > .env
 
 # Run the doctest
 script:
@@ -37,19 +23,6 @@ deploy:
     on:
         branch: master
         repo: deep-compute/logagg
-    # test pypi
-
-  - provider: pypi
-    distributions: "sdist bdist_wheel"
-    server: https://testpypi.python.org/pypi
-    skip_cleanup: true
-    user: "deepcompute"
-    password:
-      secure: IXPfJj9LHA6FvsS5+vmdC0pvqtl2S64GUHVHMjuFZg9oKHyBBVHiAoo8L7AsvA90a2mRNmm/xiJrynwvNDMkdULH+4pDMRY2LjGGccBAGVCrmkjhvgDpGMipiF5Hzs5JgCI9sIKKpVUiC3AEA7ilucHMIhEOOf6Biz036HPKIz0e2/jfuBoBtWgNzMEc2Ooxv1lUYOheqHUoJT3dKy0Z2HdnGeVBCYT5Bswj9PrymdEg/9wLsuiltKA4ZbXXYW84PnC+Iys4wWaVAqFcgP7lXGzmidpS6TgucHA4YHRwZTNdlALoF92RCjm5wK6WtbsEXIUVGiVosiUxlpVtf+3D5oazgvXnjupq5cirvy6UOOzB5O8DF1Un3aJw3xN77/CznwdFzYP7YixqCQCgfJtX0ztvV7Kzc5d4/gny8DoLpgm6UAUJDiwbBa1vxFslgYAvgAi1KY6176nxxdOK/DZ6wDJFobKQ9Hkq+lPWG2Yy5H5cxyEd0Qio9r0C5pGTJbfsFJbTTrT9UXcjR1gP69zFXriCfyspdg1l1aufxJrzSz8RGSdoRqZhAQ4eYGHAg7RmT8TsCesInJNAwe4vhsDX5iLkvhw31Idz2O0xjEaLTHsdFdVH9T+38zAjBRLGA9zmJSiqdlRi10640ZZ2+jApPyqQm/QLOstTQHYxb18rilQ=
-    on:
-      branch: master
-      tags: false
-    # pypi
 
   - provider: pypi
     distributions: "sdist bdist_wheel"
@@ -61,12 +34,3 @@ deploy:
       branch: master
       # only when there is a release it will update pypi
       tags: true
-
-# creating docker image of packages and
-# pushing it to docker hub
-- provider: script
-  skip_cleanup: true
-  script: docker login -u "$DOCKER_USER" -p "$DOCKER_PASS" && cd && chmod 777 -R .docker/ && cd - && docker build -t deepcompute/logagg . && docker push deepcompute/docker
-  on:
-    branch: master
-    tags: true
