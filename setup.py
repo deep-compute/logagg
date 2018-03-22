@@ -18,7 +18,7 @@ setup(
         "pymongo==3.6.0",
         "nsq-py==0.1.10",
         "influxdb==4.1.1",
-        "deeputil==0.1.2",
+        "deeputil==0.2.5",
         "ujson==1.35",
     ],
     package_dir={'logagg': 'logagg'},

@@ -72,7 +72,10 @@ class LogCollector(object):
     def validate_log_format(self, log):
         for key in log:
             assert (key in self.LOG_STRUCTURE)
-            assert isinstance(log[key], self.LOG_STRUCTURE[key])
+            try:
+                assert isinstance(log[key], self.LOG_STRUCTURE[key])
+            except AssertionError as e:
+                self.log.exception('formatted_log_structure_rejected' , log=log)
 
     @keeprunning(LOG_FILE_POLL_INTERVAL, on_error=util.log_exception)
     def collect_log_lines(self, log_file):
@@ -84,7 +87,6 @@ class LogCollector(object):
         for line_info in freader:
             line = line_info['line'][:-1] # remove new line char at the end
             log = dict(
-                    id=None,
                     file=fpath,
                     host=self.HOST,
                     formatter=L['formatter'],
@@ -107,6 +109,7 @@ class LogCollector(object):
                 log.update(_log)
                 if 'id' not in log:
                     log['id'] = uuid.uuid1().hex
+                #import pdb; pdb.set_trace()
                 log = self._remove_redundancy(log)
                 self.validate_log_format(log)
             except (SystemExit, KeyboardInterrupt) as e: raise
