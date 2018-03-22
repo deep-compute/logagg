@@ -1,4 +1,5 @@
 import time
+import ujson as json
 
 import requests
 from deeputil import keeprunning
@@ -15,7 +16,7 @@ class NSQSender(object):
         self.topic_name = nsq_topic
         self.nsq_max_depth = nsq_max_depth
         self.log = log
-        
+
         self.session = requests.Session()
         self._ensure_topic(self.topic_name)
         self._ensure_topic(self.HEARTBEAT_TOPIC)
@@ -64,7 +65,7 @@ class NSQSender(object):
             depth += sum(c.get('depth', 0) for c in topic['channels'])
             self.log.debug('nsq_depth_check', topic=topic_name,
                             depth=depth, max_depth=self.nsq_max_depth)
-            
+
             if depth < self.nsq_max_depth:
                 return
             else:
@@ -76,23 +77,20 @@ class NSQSender(object):
                  exit_on_success=True,
                  on_error=util.log_exception)
     def _send_messages(self, msgs, topic_name):
-        if not isinstance(msgs, list):
-            data = msgs
-        else:
-            data = '\n'.join(m['log'] for m in msgs) #FIXME only works if 'log' is there
         url = self.MPUB_URL % (self.nsqd_http_address, topic_name)
         try:
-            self.session.post(url, data=data, timeout=5) # TODO What if session expires?
+            self.session.post(url, data=msgs, timeout=5) # TODO What if session expires?
         except (SystemExit, KeyboardInterrupt): raise
         except requests.exceptions.RequestException as e:
             raise
-        self.log.debug('nsq push done ', nmsgs=len(msgs), nbytes=len(data))
+        self.log.debug('nsq push done ', nmsgs=len(msgs), nbytes=len(msgs))
 
     def handle_logs(self, msgs):
         self._is_ready(topic_name=self.topic_name)
+        msgs = '\n'.join(m['log'] for m in msgs)
         self._send_messages(msgs, topic_name=self.topic_name)
 
-    def handle_heartbeat(self, msgs):
+    def handle_heartbeat(self, heartbeat):
+        msgs = json.dumps(heartbeat)
         self._is_ready(topic_name=self.HEARTBEAT_TOPIC)
         self._send_messages(msgs, topic_name=self.HEARTBEAT_TOPIC)
-

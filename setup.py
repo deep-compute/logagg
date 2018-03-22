@@ -3,7 +3,7 @@ from setuptools import find_packages
 
 setup(
     name="logagg",
-    version="0.2.8",
+    version="0.2.9",
     description="logs aggregation framework",
     keywords="logagg",
     author="Deep Compute, LLC",
