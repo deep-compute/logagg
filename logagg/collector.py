@@ -109,7 +109,6 @@ class LogCollector(object):
                 log.update(_log)
                 if 'id' not in log:
                     log['id'] = uuid.uuid1().hex
-                #import pdb; pdb.set_trace()
                 log = self._remove_redundancy(log)
                 self.validate_log_format(log)
             except (SystemExit, KeyboardInterrupt) as e: raise
