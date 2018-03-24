@@ -24,7 +24,8 @@ class LogCollector(object):
     DESC = 'Collects the log information and sends to NSQTopic'
 
     QUEUE_MAX_SIZE = 2000           # Maximum number of messages in in-mem queue
-    NBYTES_TO_SEND = 5 * (1024**2)  # Number of bytes from in-mem queue minimally required to push
+    MAX_NBYTES_TO_SEND = 4.5 * (1024**2)  # Number of bytes from in-mem queue minimally required to push
+    MIN_NBYTES_TO_SEND = 512 * 1024 # Minimum number of bytes to send to nsq in mpub
     MAX_SECONDS_TO_PUSH = 1         # Wait till this much time elapses before pushing
     LOG_FILE_POLL_INTERVAL = 0.25   # Wait time to pull log file for new lines added
     QUEUE_READ_TIMEOUT = 1          # Wait time when doing blocking read on the in-mem q
@@ -71,7 +72,10 @@ class LogCollector(object):
     def validate_log_format(self, log):
         for key in log:
             assert (key in self.LOG_STRUCTURE)
-            assert isinstance(log[key], self.LOG_STRUCTURE[key])
+            try:
+                assert isinstance(log[key], self.LOG_STRUCTURE[key])
+            except AssertionError as e:
+                self.log.exception('formatted_log_structure_rejected' , log=log)
 
     @keeprunning(LOG_FILE_POLL_INTERVAL, on_error=util.log_exception)
     def collect_log_lines(self, log_file):
@@ -83,7 +87,6 @@ class LogCollector(object):
         for line_info in freader:
             line = line_info['line'][:-1] # remove new line char at the end
             log = dict(
-                    id=None,
                     file=fpath,
                     host=self.HOST,
                     formatter=L['formatter'],
@@ -123,42 +126,52 @@ class LogCollector(object):
             self.log.debug('waiting_for_pygtail_to_fully_ack', wait_time=t)
             time.sleep(t)
 
-    def _get_msgs_from_queue(self, msgs, msgs_nbytes, timeout):
+    def _get_msgs_from_queue(self, msgs, timeout):
+        msgs_pending = []
         read_from_q = False
         ts = time.time()
+
+        msgs_nbytes = sum(len(m['log']) for m in msgs)
 
         while 1:
             try:
                 msg = self.queue.get(block=True, timeout=self.QUEUE_READ_TIMEOUT)
                 read_from_q = True
                 self.log.debug("tally:get_from_self.queue")
-                msgs.append(msg)
-                msgs_nbytes += len(msg['log'])
 
-                if msgs_nbytes > self.NBYTES_TO_SEND: 
+                _msgs_nbytes = msgs_nbytes + len(msg['log'])
+                _msgs_nbytes += 1 # for newline char
+
+                if _msgs_nbytes > self.MAX_NBYTES_TO_SEND: 
+                    msgs_pending.append(msg)
                     self.log.debug('msg_bytes_read_mem_queue_exceeded')
                     break
+
+                msgs.append(msg)
+                msgs_nbytes = _msgs_nbytes
+
                 #FIXME condition never met
                 if time.time() - ts >= timeout and msgs:
                     self.log.debug('msg_reading_timeout_from_mem_queue_got_exceeded')
                     break
                     # TODO: What if a single log message itself is bigger than max bytes limit?
+
             except Queue.Empty:
                 self.log.debug('queue_empty')
                 time.sleep(self.QUEUE_READ_TIMEOUT)
                 if not msgs:
                     continue
                 else:
-                    return msgs, msgs_nbytes, read_from_q
+                    return msgs_pending, msgs_nbytes, read_from_q
+
         self.log.debug('got_msgs_from_mem_queue')
-        return msgs, msgs_nbytes, read_from_q
+        return msgs_pending, msgs_nbytes, read_from_q
 
 
     @keeprunning(0, on_error=util.log_exception) # FIXME: what wait time var here?
     def send_to_nsq(self, state):
         self.log.debug('send_to_nsq')
         msgs = []
-        msgs_nbytes = 0
         should_push = False
 
         while not should_push:
@@ -166,15 +179,14 @@ class LogCollector(object):
             self.log.debug('should_push', should_push=should_push)
             time_since_last_push = cur_ts - state.last_push_ts
 
-            msgs, msgs_nbytes, read_from_q = self._get_msgs_from_queue(msgs,
-                                                                        msgs_nbytes,
+            msgs_pending, msgs_nbytes, read_from_q = self._get_msgs_from_queue(msgs,
                                                                         self.MAX_SECONDS_TO_PUSH)
 
-            have_enough_msgs = msgs_nbytes >= self.NBYTES_TO_SEND
+            have_enough_msgs = msgs_nbytes >= self.MIN_NBYTES_TO_SEND
             is_max_time_elapsed = time_since_last_push >= self.MAX_SECONDS_TO_PUSH
 
             should_push = len(msgs) > 0 and (is_max_time_elapsed or have_enough_msgs)
-            self.log.debug('desciding_to_push', should_push=should_push,
+            self.log.debug('deciding_to_push', should_push=should_push,
                             time_since_last_push=time_since_last_push,
                             msgs_nbytes=msgs_nbytes)
 
@@ -183,7 +195,7 @@ class LogCollector(object):
             self.nsq_sender.handle_logs(msgs)
             self.confirm_success(msgs)
             self.log.debug('pushed_to_nsq', msgs_length=len(msgs))
-            msgs = []
+            msgs = msgs_pending
             state.last_push_ts = time.time()
         except (SystemExit, KeyboardInterrupt): raise
         finally:

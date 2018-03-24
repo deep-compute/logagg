@@ -3,7 +3,7 @@ from setuptools import find_packages
 
 setup(
     name="logagg",
-    version="0.2.8",
+    version="0.2.9",
     description="logs aggregation framework",
     keywords="logagg",
     author="Deep Compute, LLC",
@@ -18,7 +18,7 @@ setup(
         "pymongo==3.6.0",
         "nsq-py==0.1.10",
         "influxdb==4.1.1",
-        "deeputil==0.1.2",
+        "deeputil==0.2.5",
         "ujson==1.35",
     ],
     package_dir={'logagg': 'logagg'},
