@@ -87,6 +87,7 @@ class LogCollector(object):
         for line_info in freader:
             line = line_info['line'][:-1] # remove new line char at the end
             log = dict(
+                    id=None,
                     file=fpath,
                     host=self.HOST,
                     formatter=L['formatter'],
@@ -107,7 +108,7 @@ class LogCollector(object):
                     _log = util.load_object(formatter)(raw_log)
 
                 log.update(_log)
-                if 'id' not in log:
+                if log['id'] == None:
                     log['id'] = uuid.uuid1().hex
                 log = self._remove_redundancy(log)
                 self.validate_log_format(log)
@@ -125,6 +126,7 @@ class LogCollector(object):
             t = self.PYGTAIL_ACK_WAIT_TIME
             self.log.debug('waiting_for_pygtail_to_fully_ack', wait_time=t)
             time.sleep(t)
+        time.sleep(self.LOG_FILE_POLL_INTERVAL)
 
     def _get_msgs_from_queue(self, msgs, timeout):
         msgs_pending = []

@@ -3,7 +3,7 @@ from setuptools import find_packages
 
 setup(
     name="logagg",
-    version="0.2.9",
+    version="0.3.0",
     description="logs aggregation framework",
     keywords="logagg",
     author="Deep Compute, LLC",
@@ -14,7 +14,7 @@ setup(
         "https://github.com/deep-compute/pygtail/tarball/master/#egg=pygtail-0.6.1",
     ],
     install_requires=[
-        "basescript==0.1.13",
+        "basescript==0.2.0",
         "pymongo==3.6.0",
         "nsq-py==0.1.10",
         "influxdb==4.1.1",
