@@ -62,7 +62,6 @@ class MongoDBForwarder(BaseForwarder):
 
     def _parse_msg_for_mongodb(self, msgs):
         msgs_list = []
-        #TODO: We need to do this by using iteration object.
         for msg in msgs:
             msg['_id'] = msg.pop('id')
             msgs_list.append(msg)
@@ -74,18 +73,20 @@ class MongoDBForwarder(BaseForwarder):
                 self.collection.update({'_id': r['_id']}, r, upsert=True)
             except pymongo.errors.OperationFailure as opfail:
                 self.log.exception('failed_to_insert_record_in_mongodb',
-                                    record=r, tb=opfail.details)
+                                    record=r, tb=opfail.details,
+                                    num_records=1, type='metric')
 
     def handle_logs(self, msgs):
         msgs_list = self._parse_msg_for_mongodb(msgs)
         try:
             self.log.debug('inserting_msgs_mongodb')
             self.collection.insert_many(msgs_list, ordered=False)
-            self.log.info('logs_inserted_into_mongodb', num_msgs=len(msgs), type='metric')
+            self.log.info('logs_inserted_into_mongodb',
+                            num_records=len(msgs), type='metric')
         except pymongo.errors.AutoReconnect(message='connection_to_mongodb_failed'):
             self._ensure_connection()
         except pymongo.errors.BulkWriteError as bwe:
-            self.log.exception('bulk_write_to_mongodb_failed', tb=bwe.details)
+            self.log.exception('bulk_write_to_mongodb_failed')
             self._insert_1by1(msgs_list)
 
 
@@ -167,9 +168,10 @@ class InfluxDBForwarder(BaseForwarder):
             self.log.debug('inserting_the_metrics_into_influxdb')
             self.influxdb_client.write_points(records)
             self.log.info('metrics_inserted_into_influxdb',
-                           length=len(records),
+                           num_records=len(records),
                            type='metric')
         except (InfluxDBClientError, InfluxDBServerError) as e:
             self.log.exception('failed_to_insert metric',
                                 record=records,
-                                length=len(records))
+                                num_records=len(records),
+                                type='metric')
