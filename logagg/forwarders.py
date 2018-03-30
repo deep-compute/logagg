@@ -67,15 +67,6 @@ class MongoDBForwarder(BaseForwarder):
             msgs_list.append(msg)
         return msgs_list
 
-    def _insert_1by1(self, records):
-        for r in records:
-            try:
-                self.collection.update({'_id': r['_id']}, r, upsert=True)
-            except pymongo.errors.OperationFailure as opfail:
-                self.log.exception('failed_to_insert_record_in_mongodb',
-                                    record=r, tb=opfail.details,
-                                    num_records=1, type='metric')
-
     def handle_logs(self, msgs):
         msgs_list = self._parse_msg_for_mongodb(msgs)
         try:
@@ -86,8 +77,10 @@ class MongoDBForwarder(BaseForwarder):
         except pymongo.errors.AutoReconnect(message='connection_to_mongodb_failed'):
             self._ensure_connection()
         except pymongo.errors.BulkWriteError as bwe:
-            self.log.exception('bulk_write_to_mongodb_failed')
-            self._insert_1by1(msgs_list)
+            self.log.info('logs_inserted_into_mongodb',
+                       num_records=bwe.details['nInserted'], type='metric',
+                       records_not_inserted = bwe.details['writeErrors'],
+                       num_records_missed= len(bwe.details['writeErrors']))
 
 
 from influxdb import InfluxDBClient

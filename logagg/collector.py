@@ -57,6 +57,8 @@ class LogCollector(object):
         self.heartbeat_interval = heartbeat_interval
         self.log = log
 
+        # Thread handling
+        self.jobs = []
         # Log fpath to thread mapping
         self.log_reader_threads = {}
         # Handle name to formatter fn obj map
@@ -65,7 +67,7 @@ class LogCollector(object):
 
     def _remove_redundancy(self, log):
         for key in log:
-            if key in log and key in log['data']:
+            ifkey in log and key in log['data']:
                 log[key] = log['data'].pop(key)
         return log
 
@@ -86,17 +88,21 @@ class LogCollector(object):
         freader = Pygtail(fpath)
         for line_info in freader:
             line = line_info['line'][:-1] # remove new line char at the end
+
+            # assign default values
             log = dict(
                     id=None,
                     file=fpath,
                     host=self.HOST,
                     formatter=L['formatter'],
                     event='event',
+                    data={},
                     raw=line,
                     timestamp=datetime.datetime.utcnow().isoformat(),
                     type='log',
                     level='debug',
                     error= False,
+                    error_tb='',
                   )
 
             try:
@@ -108,16 +114,18 @@ class LogCollector(object):
                     _log = util.load_object(formatter)(raw_log)
 
                 log.update(_log)
-                if log['id'] == None:
-                    log['id'] = uuid.uuid1().hex
-                log = self._remove_redundancy(log)
-                self.validate_log_format(log)
             except (SystemExit, KeyboardInterrupt) as e: raise
             except:
-                self.log.exception('Error during handling log line', log=log)
                 log['error'] = True
                 log['error_tb'] = traceback.format_exc()
+                self.log.exception('error_during_handling_log_line', log=log['raw'])
 
+            if log['id'] == None:
+                log['id'] = uuid.uuid1().hex
+
+            log = self._remove_redundancy(log)
+            self.validate_log_format(log)
+ 
             self.queue.put(dict(log=json.dumps(log),
                                 freader=freader, line_info=line_info))
             self.log.debug('tally:put_into_self.queue', size=self.queue.qsize())
@@ -246,9 +254,10 @@ class LogCollector(object):
                     log_key = (fpath, fpattern, formatter)
                     if log_key not in self.log_reader_threads:
                         self.log.info('starting_collect_log_lines_thread', log_key=log_key)
-                        #self.collect_log_lines(log_f)
                         # There is no existing thread tracking this log file. Start one
-                        self.log_reader_threads[log_key] = util.start_daemon_thread(self.collect_log_lines, (log_f,))
+                        log_reader_thread = util.start_daemon_thread(self.collect_log_lines, (log_f,))
+                        self.log_reader_threads[log_key] = log_reader_thread
+                        self.jobs.append(log_reader_thread)
                     state.files_tracked.append(fpath)
         time.sleep(self.SCAN_FPATTERNS_INTERVAL)
 
@@ -265,12 +274,13 @@ class LogCollector(object):
 
     def start(self):
         state = AttrDict(files_tracked=list())
-        #self._scan_fpatterns(state)
         util.start_daemon_thread(self._scan_fpatterns, (state,))
 
         state = AttrDict(last_push_ts=time.time())
         util.start_daemon_thread(self.send_to_nsq, (state,))
 
         state = AttrDict(heartbeat_number=0)
-        util.start_daemon_thread(self.send_heartbeat, (state,)).join()
+        job = util.start_daemon_thread(self.send_heartbeat, (state,))
+        self.jobs.append(job)
 
+        util.job_tracker(self.jobs)
