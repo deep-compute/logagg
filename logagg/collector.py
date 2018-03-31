@@ -67,7 +67,7 @@ class LogCollector(object):
 
     def _remove_redundancy(self, log):
         for key in log:
-            ifkey in log and key in log['data']:
+            if key in log and key in log['data']:
                 log[key] = log['data'].pop(key)
         return log
 

@@ -43,9 +43,9 @@ def start_daemon_thread(target, args=()):
     th.start()
     return th
 
-def job_tracker(list_of_threads)
+def job_tracker(list_of_threads):
     while True:
-    for th in list_of_threads
+        for th in list_of_threads:
                 th.join(1)
                 if not th.isAlive(): break
 
