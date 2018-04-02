@@ -63,7 +63,10 @@ class MongoDBForwarder(BaseForwarder):
     def _parse_msg_for_mongodb(self, msgs):
         msgs_list = []
         for msg in msgs:
-            msg['_id'] = msg.pop('id')
+            try:
+                msg['_id'] = msg.pop('id')
+            except KeyError:
+                self.log.exception('collector_failure_id_not_found', log=msg)
             msgs_list.append(msg)
         return msgs_list
 
