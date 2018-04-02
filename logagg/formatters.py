@@ -74,7 +74,7 @@ def nginx_access(line):
     log['body_bytes_sent'] = float(log['body_bytes_sent'])
     log['request_time'] = float(log['request_time'])
     log['upstream_response_time'] = float(log['upstream_response_time'])
-    
+
     event = log['request'].split(' ')[0] + '_request'
 
     return dict(
@@ -192,7 +192,7 @@ def django(line):
     else:
         return dict(
             timestamp=datetime.datetime.isoformat(datetime.datetime.utcnow()),
-            data=line
+            data={raw:line}
         )
 
 def basescript(line):
@@ -281,7 +281,7 @@ def elasticsearch(line):
         event = data['message']
         level=values[1]
         timestamp=values[0]
-        
+
         return dict(
                 timestamp=timestamp,
                 level=level,
@@ -293,5 +293,5 @@ def elasticsearch(line):
     else:
         return dict(
                 timestamp=datetime.datetime.isoformat(datetime.datetime.now()),
-                data=line
+                data={'raw': line}
         )

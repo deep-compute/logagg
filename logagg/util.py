@@ -43,12 +43,6 @@ def start_daemon_thread(target, args=()):
     th.start()
     return th
 
-def job_tracker(list_of_threads):
-    while True:
-        for th in list_of_threads:
-                th.join(1)
-                if not th.isAlive(): break
-
 def serialize_dict_keys(d, prefix=""):
     """ returns all the keys in a dictionary
     >>> serialize_dict_keys({"a": {"b": {"c": 1, "b": 2} } })

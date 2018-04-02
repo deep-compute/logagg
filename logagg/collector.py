@@ -125,7 +125,7 @@ class LogCollector(object):
 
             log = self._remove_redundancy(log)
             self.validate_log_format(log)
- 
+
             self.queue.put(dict(log=json.dumps(log),
                                 freader=freader, line_info=line_info))
             self.log.debug('tally:put_into_self.queue', size=self.queue.qsize())
@@ -152,7 +152,7 @@ class LogCollector(object):
                 _msgs_nbytes = msgs_nbytes + len(msg['log'])
                 _msgs_nbytes += 1 # for newline char
 
-                if _msgs_nbytes > self.MAX_NBYTES_TO_SEND: 
+                if _msgs_nbytes > self.MAX_NBYTES_TO_SEND:
                     msgs_pending.append(msg)
                     self.log.debug('msg_bytes_read_mem_queue_exceeded')
                     break
@@ -224,7 +224,7 @@ class LogCollector(object):
             ack_fnames.add(fname)
             freader.update_offset_file(msg['line_info'])
 
-    @keeprunning(SCAN_FPATTERNS_INTERVAL,on_error=util.log_exception)
+    @keeprunning(SCAN_FPATTERNS_INTERVAL, on_error=util.log_exception)
     def _scan_fpatterns(self, state):
         '''
         fpaths = 'file=/var/log/nginx/access.log:formatter=logagg.formatters.nginx_access'
@@ -283,4 +283,7 @@ class LogCollector(object):
         job = util.start_daemon_thread(self.send_heartbeat, (state,))
         self.jobs.append(job)
 
-        util.job_tracker(self.jobs)
+        while True:
+            for th in self.jobs:
+                    th.join(1)
+                    if not th.isAlive(): break
