@@ -38,7 +38,7 @@ def nginx_access(line):
               u'status': u'200',
               u'timestamp': '2018-01-05T09:31:39.201000',
               u'upstream_response_time': 0.0},
-     'event': u'GET_request',
+     'event': 'nginx_event',
      'timestamp': '2018-01-05T09:31:39.201000',
      'type': 'metric'}
 
@@ -61,7 +61,7 @@ def nginx_access(line):
               u'status': u'404',
               u'timestamp': '2018-01-05T09:14:46.415000',
               u'upstream_response_time': 0.0},
-     'event': u'POST_request',
+     'event': 'nginx_event',
      'timestamp': '2018-01-05T09:14:46.415000',
      'type': 'metric'}
     '''
@@ -75,13 +75,11 @@ def nginx_access(line):
     log['request_time'] = float(log['request_time'])
     log['upstream_response_time'] = float(log['upstream_response_time'])
 
-    event = log['request'].split(' ')[0] + '_request'
-
     return dict(
         timestamp=log.get('timestamp',' '),
         data=log,
         type='metric',
-        event=event
+        event='nginx_event',
     )
 
 def mongodb(line):
