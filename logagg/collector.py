@@ -57,8 +57,6 @@ class LogCollector(object):
         self.heartbeat_interval = heartbeat_interval
         self.log = log
 
-        # Thread handling
-        self.jobs = []
         # Log fpath to thread mapping
         self.log_reader_threads = {}
         # Handle name to formatter fn obj map
@@ -257,7 +255,6 @@ class LogCollector(object):
                         # There is no existing thread tracking this log file. Start one
                         log_reader_thread = util.start_daemon_thread(self.collect_log_lines, (log_f,))
                         self.log_reader_threads[log_key] = log_reader_thread
-                        self.jobs.append(log_reader_thread)
                     state.files_tracked.append(fpath)
         time.sleep(self.SCAN_FPATTERNS_INTERVAL)
 
@@ -280,10 +277,8 @@ class LogCollector(object):
         util.start_daemon_thread(self.send_to_nsq, (state,))
 
         state = AttrDict(heartbeat_number=0)
-        job = util.start_daemon_thread(self.send_heartbeat, (state,))
-        self.jobs.append(job)
+        th_heartbeat = util.start_daemon_thread(self.send_heartbeat, (state,))
 
         while True:
-            for th in self.jobs:
-                    th.join(1)
-                    if not th.isAlive(): break
+            th_heartbeat.join(1)
+            if not th_heartbeat.isAlive(): break
