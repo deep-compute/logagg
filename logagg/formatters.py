@@ -5,7 +5,7 @@ import datetime
 class RawLog(dict): pass
 
 #FIXME: cannot do both returns .. should it?
-def docker_log_file_driver(line):
+def docker_file_log_driver(line):
     log = json.loads(json.loads(line)['msg'])
     if 'formatter' in log.get('extra'):
         return RawLog(dict(formatter=log.get('extra').get('formatter'),
@@ -38,7 +38,7 @@ def nginx_access(line):
               u'status': u'200',
               u'timestamp': '2018-01-05T09:31:39.201000',
               u'upstream_response_time': 0.0},
-     'event': u'GET_request',
+     'event': 'nginx_event',
      'timestamp': '2018-01-05T09:31:39.201000',
      'type': 'metric'}
 
@@ -61,7 +61,7 @@ def nginx_access(line):
               u'status': u'404',
               u'timestamp': '2018-01-05T09:14:46.415000',
               u'upstream_response_time': 0.0},
-     'event': u'POST_request',
+     'event': 'nginx_event',
      'timestamp': '2018-01-05T09:14:46.415000',
      'type': 'metric'}
     '''
@@ -74,14 +74,12 @@ def nginx_access(line):
     log['body_bytes_sent'] = float(log['body_bytes_sent'])
     log['request_time'] = float(log['request_time'])
     log['upstream_response_time'] = float(log['upstream_response_time'])
-    
-    event = log['request'].split(' ')[0] + '_request'
 
     return dict(
         timestamp=log.get('timestamp',' '),
         data=log,
         type='metric',
-        event=event
+        event='nginx_event',
     )
 
 def mongodb(line):
@@ -192,7 +190,7 @@ def django(line):
     else:
         return dict(
             timestamp=datetime.datetime.isoformat(datetime.datetime.utcnow()),
-            data=line
+            data={raw:line}
         )
 
 def basescript(line):
@@ -281,7 +279,7 @@ def elasticsearch(line):
         event = data['message']
         level=values[1]
         timestamp=values[0]
-        
+
         return dict(
                 timestamp=timestamp,
                 level=level,
@@ -293,5 +291,5 @@ def elasticsearch(line):
     else:
         return dict(
                 timestamp=datetime.datetime.isoformat(datetime.datetime.now()),
-                data=line
+                data={'raw': line}
         )

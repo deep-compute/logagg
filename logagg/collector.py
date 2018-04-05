@@ -86,17 +86,21 @@ class LogCollector(object):
         freader = Pygtail(fpath)
         for line_info in freader:
             line = line_info['line'][:-1] # remove new line char at the end
+
+            # assign default values
             log = dict(
                     id=None,
                     file=fpath,
                     host=self.HOST,
                     formatter=L['formatter'],
                     event='event',
+                    data={},
                     raw=line,
                     timestamp=datetime.datetime.utcnow().isoformat(),
                     type='log',
                     level='debug',
                     error= False,
+                    error_tb='',
                   )
 
             try:
@@ -108,15 +112,17 @@ class LogCollector(object):
                     _log = util.load_object(formatter)(raw_log)
 
                 log.update(_log)
-                if log['id'] == None:
-                    log['id'] = uuid.uuid1().hex
-                log = self._remove_redundancy(log)
-                self.validate_log_format(log)
             except (SystemExit, KeyboardInterrupt) as e: raise
             except:
-                self.log.exception('Error during handling log line', log=log)
                 log['error'] = True
                 log['error_tb'] = traceback.format_exc()
+                self.log.exception('error_during_handling_log_line', log=log['raw'])
+
+            if log['id'] == None:
+                log['id'] = uuid.uuid1().hex
+
+            log = self._remove_redundancy(log)
+            self.validate_log_format(log)
 
             self.queue.put(dict(log=json.dumps(log),
                                 freader=freader, line_info=line_info))
@@ -144,7 +150,7 @@ class LogCollector(object):
                 _msgs_nbytes = msgs_nbytes + len(msg['log'])
                 _msgs_nbytes += 1 # for newline char
 
-                if _msgs_nbytes > self.MAX_NBYTES_TO_SEND: 
+                if _msgs_nbytes > self.MAX_NBYTES_TO_SEND:
                     msgs_pending.append(msg)
                     self.log.debug('msg_bytes_read_mem_queue_exceeded')
                     break
@@ -216,7 +222,7 @@ class LogCollector(object):
             ack_fnames.add(fname)
             freader.update_offset_file(msg['line_info'])
 
-    @keeprunning(SCAN_FPATTERNS_INTERVAL,on_error=util.log_exception)
+    @keeprunning(SCAN_FPATTERNS_INTERVAL, on_error=util.log_exception)
     def _scan_fpatterns(self, state):
         '''
         fpaths = 'file=/var/log/nginx/access.log:formatter=logagg.formatters.nginx_access'
@@ -246,9 +252,9 @@ class LogCollector(object):
                     log_key = (fpath, fpattern, formatter)
                     if log_key not in self.log_reader_threads:
                         self.log.info('starting_collect_log_lines_thread', log_key=log_key)
-                        #self.collect_log_lines(log_f)
                         # There is no existing thread tracking this log file. Start one
-                        self.log_reader_threads[log_key] = util.start_daemon_thread(self.collect_log_lines, (log_f,))
+                        log_reader_thread = util.start_daemon_thread(self.collect_log_lines, (log_f,))
+                        self.log_reader_threads[log_key] = log_reader_thread
                     state.files_tracked.append(fpath)
         time.sleep(self.SCAN_FPATTERNS_INTERVAL)
 
@@ -265,12 +271,14 @@ class LogCollector(object):
 
     def start(self):
         state = AttrDict(files_tracked=list())
-        #self._scan_fpatterns(state)
         util.start_daemon_thread(self._scan_fpatterns, (state,))
 
         state = AttrDict(last_push_ts=time.time())
         util.start_daemon_thread(self.send_to_nsq, (state,))
 
         state = AttrDict(heartbeat_number=0)
-        util.start_daemon_thread(self.send_heartbeat, (state,)).join()
+        th_heartbeat = util.start_daemon_thread(self.send_heartbeat, (state,))
 
+        while True:
+            th_heartbeat.join(1)
+            if not th_heartbeat.isAlive(): break

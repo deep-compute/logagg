@@ -21,7 +21,7 @@ class LogForwarder(object):
     MAX_SECONDS_TO_PUSH = 1
     MAX_MESSAGES_TO_PUSH = 200
 
-    WAIT_TIME_TARGET_FAILURE = 10
+    WAIT_TIME_TARGET_FAILURE = 2
 
     def __init__(self, message_source, targets, log=DUMMY_LOGGER):
 
@@ -102,8 +102,7 @@ class LogForwarder(object):
             except (SystemExit, KeyboardInterrupt): raise
             except:
                 # FIXME: do we log the failed messages themselves somewhere?
-                self.log.exception('_send_msgs_to_target_failed',
-                        target=target, num_msgs=len(msgs))
+                self.log.exception('_send_msgs_to_target_failed', target=target)
                 time.sleep(self.WAIT_TIME_TARGET_FAILURE)
                 # FIXME: also implement some sort of backoff sleep
 
