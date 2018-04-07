@@ -10,6 +10,8 @@ import datetime
 from operator import attrgetter
 import traceback
 
+from pprint import pprint
+
 from deeputil import AttrDict, keeprunning
 from pygtail import Pygtail
 from logagg import util
@@ -19,6 +21,16 @@ from logagg.formatters import RawLog
 '''
 After a downtime of collector, pygtail is missing logs from rotational files
 '''
+
+def load_formatter_fn(formatter):
+    '''
+    >>> load_formatter_fn('logagg.formatters.basescript') #doctest: +ELLIPSIS
+    <function basescript at 0x...>
+    '''
+    obj = util.load_object(formatter)
+    if not hasattr(obj, 'ispartial'):
+        obj.ispartial = util.ispartial
+    return obj
 
 class LogCollector(object):
     DESC = 'Collects the log information and sends to NSQTopic'
@@ -77,22 +89,45 @@ class LogCollector(object):
             except AssertionError as e:
                 self.log.exception('formatted_log_structure_rejected' , log=log)
 
+    def _full_from_frags(self, frags):
+        full_line = '\n'.join([l for l, _ in frags])
+        line_info = frags[-1][-1]
+        return full_line, line_info
+
+    def _iter_logs(self, freader, fmtfn):
+        # FIXME: does not handle partial lines
+        # at the start of a file properly
+
+        frags = []
+
+        for line_info in freader:
+            line = line_info['line'][:-1] # remove new line char at the end
+
+            if not fmtfn.ispartial(line) and frags:
+                yield self._full_from_frags(frags)
+                frags = []
+
+            frags.append((line, line_info))
+
+        if frags:
+            yield self._full_from_frags(frags)
+
     @keeprunning(LOG_FILE_POLL_INTERVAL, on_error=util.log_exception)
     def collect_log_lines(self, log_file):
         L = log_file
         fpath = L['fpath']
-        self.log.debug('tracking_file_for_log_lines', fpath=fpath)
-
+        fmtfn = L['formatter_fn']
+        formatter = L['formatter']
+        
         freader = Pygtail(fpath)
-        for line_info in freader:
-            line = line_info['line'][:-1] # remove new line char at the end
+        for line, line_info in self._iter_logs(freader, fmtfn):
 
             # assign default values
             log = dict(
                     id=None,
                     file=fpath,
                     host=self.HOST,
-                    formatter=L['formatter'],
+                    formatter=formatter,
                     event='event',
                     data={},
                     raw=line,
@@ -104,12 +139,12 @@ class LogCollector(object):
                   )
 
             try:
-                _log = L['formatter_fn'](line)
+                _log = fmtfn(line)
 
                 if isinstance(_log, RawLog):
                     formatter, raw_log = _log['formatter'], _log['raw']
                     log.update(_log)
-                    _log = util.load_object(formatter)(raw_log)
+                    _log = load_formatter_fn(formatter)(raw_log)
 
                 log.update(_log)
             except (SystemExit, KeyboardInterrupt) as e: raise
@@ -123,7 +158,9 @@ class LogCollector(object):
 
             log = self._remove_redundancy(log)
             self.validate_log_format(log)
-
+            
+            self.log.debug('final_log_format', log=pprint(log))
+            time.sleep(5)
             self.queue.put(dict(log=json.dumps(log),
                                 freader=freader, line_info=line_info))
             self.log.debug('tally:put_into_self.queue', size=self.queue.qsize())
@@ -234,28 +271,28 @@ class LogCollector(object):
             # TODO code for scanning fpatterns for the files not yet present goes here
             fpaths = glob.glob(fpattern)
             # Load formatter_fn if not in list
+            fpaths = list(set(fpaths) - set(state.files_tracked))
             for fpath in fpaths:
-                if fpath not in state.files_tracked:
-                    try:
-                        formatter_fn = self.formatters.get(formatter,
-                                      util.load_object(formatter))
-                        self.log.info('found_formatter_fn', fn=formatter)
-                        self.formatters[formatter] = formatter_fn
-                    except (SystemExit, KeyboardInterrupt): raise
-                    except (ImportError, AttributeError):
-                        self.log.exception('formatter_fn_not_found', fn=formatter)
-                        sys.exit(-1)
-                    # Start a thread for every file
-                    self.log.info('found_log_file', log_file=fpath)
-                    log_f = dict(fpath=fpath, fpattern=fpattern,
-                                    formatter=formatter, formatter_fn=formatter_fn)
-                    log_key = (fpath, fpattern, formatter)
-                    if log_key not in self.log_reader_threads:
-                        self.log.info('starting_collect_log_lines_thread', log_key=log_key)
-                        # There is no existing thread tracking this log file. Start one
-                        log_reader_thread = util.start_daemon_thread(self.collect_log_lines, (log_f,))
-                        self.log_reader_threads[log_key] = log_reader_thread
-                    state.files_tracked.append(fpath)
+                try:
+                    formatter_fn = self.formatters.get(formatter,
+                                  load_formatter_fn(formatter))
+                    self.log.info('found_formatter_fn', fn=formatter)
+                    self.formatters[formatter] = formatter_fn
+                except (SystemExit, KeyboardInterrupt): raise
+                except (ImportError, AttributeError):
+                    self.log.exception('formatter_fn_not_found', fn=formatter)
+                    sys.exit(-1)
+                # Start a thread for every file
+                self.log.info('found_log_file', log_file=fpath)
+                log_f = dict(fpath=fpath, fpattern=fpattern,
+                                formatter=formatter, formatter_fn=formatter_fn)
+                log_key = (fpath, fpattern, formatter)
+                if log_key not in self.log_reader_threads:
+                    self.log.info('starting_collect_log_lines_thread', log_key=log_key)
+                    # There is no existing thread tracking this log file. Start one
+                    log_reader_thread = util.start_daemon_thread(self.collect_log_lines, (log_f,))
+                    self.log_reader_threads[log_key] = log_reader_thread
+                state.files_tracked.append(fpath)
         time.sleep(self.SCAN_FPATTERNS_INTERVAL)
 
     @keeprunning(HEARTBEAT_RESTART_INTERVAL, on_error=util.log_exception)
@@ -273,8 +310,8 @@ class LogCollector(object):
         state = AttrDict(files_tracked=list())
         util.start_daemon_thread(self._scan_fpatterns, (state,))
 
-        state = AttrDict(last_push_ts=time.time())
-        util.start_daemon_thread(self.send_to_nsq, (state,))
+#        state = AttrDict(last_push_ts=time.time())
+#        util.start_daemon_thread(self.send_to_nsq, (state,))
 
         state = AttrDict(heartbeat_number=0)
         th_heartbeat = util.start_daemon_thread(self.send_heartbeat, (state,))
