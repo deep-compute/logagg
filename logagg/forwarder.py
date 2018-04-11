@@ -4,15 +4,12 @@ from threading import Thread
 from copy import deepcopy
 from multiprocessing.pool import ThreadPool
 
-from deeputil import Dummy
 from logagg import util
 import ujson as json
 
-DUMMY_LOGGER = Dummy()
 
 class LogForwarder(object):
     DESC = "Gets all the logs from nsq and stores in the storage engines"
-
 
     QUEUE_EMPTY_SLEEP_TIME = 0.1
     QUEUE_TIMEOUT = 1
@@ -23,7 +20,7 @@ class LogForwarder(object):
 
     WAIT_TIME_TARGET_FAILURE = 2
 
-    def __init__(self, message_source, targets, log=DUMMY_LOGGER):
+    def __init__(self, message_source, targets, log=util.DUMMY):
 
         self.message_source = message_source
         self.targets = targets
@@ -72,37 +69,43 @@ class LogForwarder(object):
             is_msg_limit_reached = len(msgs) >= self.MAX_MESSAGES_TO_PUSH
             is_max_time_elapsed = time_since_last_push >= self.MAX_SECONDS_TO_PUSH
 
-            should_push = len(msgs) > 0 and (is_max_time_elapsed or is_msg_limit_reached)
+            should_push = len(msgs) > 0 and (
+                is_max_time_elapsed or is_msg_limit_reached)
 
             try:
                 if should_push:
                     self.log.debug('writing_messages_to_databases')
                     self._write_messages(msgs)
                     self._ack_messages(msgs)
-                    self.log.debug('ack_to_nsq_is_done_for_msgs', num_msgs=len(msgs))
+                    self.log.debug('ack_to_nsq_is_done_for_msgs',
+                        num_msgs=len(msgs))
 
                     msgs = []
                     last_push_ts = time.time()
 
-            except (SystemExit, KeyboardInterrupt): raise
+            except (SystemExit, KeyboardInterrupt):
+                raise
 
     def _ack_messages(self, msgs):
         for msg in msgs:
             try:
                 msg.fin()
-            except (SystemExit, KeyboardInterrupt): raise
-            except:
+            except (SystemExit, KeyboardInterrupt):
+                raise
+            except BaseException:
                 self.log.exception('msg_ack_failed')
 
     def _send_msgs_to_target(self, target, msgs):
-        while 1:
+        while True:
             try:
                 target.handle_logs(msgs)
                 break
-            except (SystemExit, KeyboardInterrupt): raise
-            except:
+            except (SystemExit, KeyboardInterrupt):
+                raise
+            except BaseException:
                 # FIXME: do we log the failed messages themselves somewhere?
-                self.log.exception('_send_msgs_to_target_failed', target=target)
+                self.log.exception(
+                    '_send_msgs_to_target_failed', target=target)
                 time.sleep(self.WAIT_TIME_TARGET_FAILURE)
                 # FIXME: also implement some sort of backoff sleep
 

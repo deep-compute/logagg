@@ -3,7 +3,7 @@ from deeputil import Dummy
 
 from operator import attrgetter
 
-DUMMY_LOGGER = Dummy()
+DUMMY = Dummy()
 
 
 def memoize(f):

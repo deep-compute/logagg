@@ -11,7 +11,7 @@ class NSQSender(object):
     HEARTBEAT_TOPIC = 'Heartbeat#ephemeral' # Topic name at which heartbeat is to be sent
     MPUB_URL = 'http://%s/mpub?topic=%s'    # Url to post msgs to NSQ
 
-    def __init__(self, http_loc, nsq_topic, nsq_max_depth, log=util.DUMMY_LOGGER):
+    def __init__(self, http_loc, nsq_topic, nsq_max_depth, log=util.DUMMY):
         self.nsqd_http_address = http_loc
         self.topic_name = nsq_topic
         self.nsq_max_depth = nsq_max_depth
@@ -44,7 +44,7 @@ class NSQSender(object):
         #Cheacking for ephmeral channels
         if '#' in topic_name:
             topic_name, tag =topic_name.split("#", 1)
-        
+
         try:
             data = self.session.get(url).json()
             '''
@@ -56,10 +56,10 @@ class NSQSender(object):
             '''
             topics = data.get('topics', [])
             topics = [t for t in topics if t['topic_name'] == topic_name]
-            
+
             if not topics:
                 raise Exception('topic_missing_at_nsq')
-                
+
             topic = topics[0]
             depth = topic['depth']
             depth += sum(c.get('depth', 0) for c in topic['channels'])

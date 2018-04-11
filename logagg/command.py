@@ -9,11 +9,9 @@ from logagg import util
 class LogaggCommand(BaseScript):
     DESC = 'Logagg command line tool'
 
-    DUMMY = util.DUMMY_LOGGER
-
     def collect(self):
         if not self.args.nsqd_http_address:
-            nsq_sender = self.DUMMY
+            nsq_sender = util.DUMMY
         else:
             nsq_sender = NSQSender(self.args.nsqd_http_address,
                                    self.args.nsqtopic,
@@ -21,8 +19,8 @@ class LogaggCommand(BaseScript):
                                    self.log)
         collector = LogCollector(
             self.args.file,
-            nsq_sender,
             self.args.heartbeat_interval,
+            nsq_sender,
             self.log)
         collector.start()
 
@@ -71,8 +69,7 @@ class LogaggCommand(BaseScript):
         collect_cmd.add_argument(
             '--nsqd-http-address',
             nargs='?',
-            default='localhost:4151',
-            help='nsqd http address where we send the messages')
+            help='nsqd http address where we send the messages, eg. localhost:4151')
         collect_cmd.add_argument('--depth-limit-at-nsq', type=int,
                                  default=10000000,
                                  help='To limit the depth at nsq topic')
@@ -80,7 +77,8 @@ class LogaggCommand(BaseScript):
             '--heartbeat-interval',
             type=int,
             default=30,
-            help='Time interval at which regular heartbeats to a nsqTopic "heartbeat" to know which hosts are running logagg')
+            help='Time interval at which regular heartbeats to a nsqTopic \
+                    "heartbeat" to know which hosts are running logagg')
 
         forward_cmd = subcommands.add_parser('forward',
                                              help='Collects all the messages\

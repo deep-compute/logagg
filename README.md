@@ -1,5 +1,6 @@
 # logagg
-logs aggregation framework
+**logs aggregation framework**
+![](https://i.imgur.com/NtjRGf1.png)
 
 Collects all the logs from the server and parses it for making a common schema for all the logs and stores at given storage engine.
 
@@ -8,6 +9,90 @@ Collects all the logs from the server and parses it for making a common schema f
 
 
 ## Components/Architecture/Terminology
+
+
+```
+               +----------+                                 +----------+
+               |          |                                 |          |
+               |          |                                 |          |
+       +-----+ |          |  +-----+                +-----+ |          |  +-----+
+       +     + | server1  |  +     +                +     + | server2  |  +     +
+      file.log |          | file.log               file.log |          | file.log
++------+     + |          |  +     +-----+   +------+     + |          |  +     +-----+
+|      +-----+ |          |  +-----+     |   |      +-----+ |          |  +-----+     |
+|              |          |              |   |              |          |              |
+|              |          |              |   |              |          |              |
+|              |          |              |   |              |          |              |
+|              |          |              |   |              |          |              |
+|              +----------+              |   |              +----------+              |
+|                                        |   |                                        |
+|   logagg collector running on ser^er   |   |   logagg collector running on ser^er   |
+|                                        |   |                                        |
+|     +-----------------------------+    |   |     +-----------------------------+    |
+|     |                             |    |   |     |                             |    |
+|     +-------------+   +-----------+    |   |     +-------------+   +-----------+    |
+|     |log          +   log         +    |   |     |log          +   log         +    |
++->   |file formatter   file formatter  <+   +->   |file formatter   file formatter  <+
+      +-------------+   +-----------+              +-------------+   +-----------+
+      |                             |              |                             |
+      |         +------------+      |              |         +------------+      |
+      |         | collector  |      |              |         | collector  |      |
+      +---------+-----+------+------+              +---------+-------+----+------+
+                      |                                              |
+                      |                                              |
+                      |                                              |
+                      |                                              |
+                      |                                              |
+                      |             +----------------+               |
+                      |             |                |               |
+                      +---------->  |                | <-------------+
+                                    |                |
+                                    |  NSQ server    |
+                                    |                |
+                                    |                |
+                                    |                |
+                                    |                |
+                                    |                |
+                                    |                |
+                                    |                |
+                                    |                |
+                                    |                |
+                                    +--------+-------+
+                                             |
+                                             |
+                         logagg forwarder run|ing on central logs ser^er
+                                             |
+                            +-------+--------v---------+------+
+                            |       | forwarder        |      |
+                            |       |                  |      |
+                            |       +--+-------------+-+      |
+                            |          |             |        |
+                            +----------v----+  +-----v--------+
+             +--------------+               |  |              +------------+
+             |             forwarder        |  |  forwarder   +            |
+             |             for database 1   |  |  for database 2           |
+             |              +---------------+--+--------------+            |
+             |                                                             |
+             |                                                             |
+             |                      +-----------------+                    |
+             |                      |                 |                    |
+             |                      |                 |                    |
+             |                      |                 |                    |
+             |                      |                 |                    |
+             |                      +                 +                    |
+             |                      central logs server                    |
+             |      +-----------+   +                 +   +-----------+    |
+             |      |           +---+                 +---+           |    |
+             |      +-----------+   |                 |   +-----------+    |
+             +----> Database1  ||   |                 |   Database2  || <--+
+                    +-----------+   |                 |   +-----------+
+                    |           |   |                 |   |           |
+                    |           |   |                 |   |           |
+                    +-----------+   |                 |   +-----------+
+                                    |                 |
+                                    +-----------------+
+
+```
 
 * `files` : Log files which are being tracked by logagg
 * `node` : The server(s) where the log `files` reside
