@@ -373,11 +373,11 @@ class LogCollector(object):
         []
 
 
->>> if not state.files_tracked:
->>>     lc._scan_fpatterns(state)
->>>     print('formatters loaded:', lc.formatters)
->>>     print('log file reader threads started:', lc.log_reader_threads)
->>>     print('files bieng tracked:', state.files_tracked)
+        >>> if not state.files_tracked:
+        >>>     lc._scan_fpatterns(state)
+        >>>     print('formatters loaded:', lc.formatters)
+        >>>     print('log file reader threads started:', lc.log_reader_threads)
+        >>>     print('files bieng tracked:', state.files_tracked)
 
         
         '''
