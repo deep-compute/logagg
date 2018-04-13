@@ -22,8 +22,6 @@ Collects all the logs from the server and parses it for making a common schema f
 |      +-----+ |          |  +-----+     |   |      +-----+ |          |  +-----+     |
 |              |          |              |   |              |          |              |
 |              |          |              |   |              |          |              |
-|              |          |              |   |              |          |              |
-|              |          |              |   |              |          |              |
 |              +----------+              |   |              +----------+              |
 |                                        |   |                                        |
 |   logagg collector running on ser^er   |   |   logagg collector running on ser^er   |
@@ -40,20 +38,11 @@ Collects all the logs from the server and parses it for making a common schema f
       +---------+-----+------+------+              +---------+-------+----+------+
                       |                                              |
                       |                                              |
-                      |                                              |
-                      |                                              |
-                      |                                              |
                       |             +----------------+               |
                       |             |                |               |
                       +---------->  |                | <-------------+
                                     |                |
                                     |  NSQ server    |
-                                    |                |
-                                    |                |
-                                    |                |
-                                    |                |
-                                    |                |
-                                    |                |
                                     |                |
                                     |                |
                                     |                |
@@ -78,7 +67,6 @@ Collects all the logs from the server and parses it for making a common schema f
              |                      |                 |                    |
              |                      |                 |                    |
              |                      |                 |                    |
-             |                      |                 |                    |
              |                      +                 +                    |
              |                      central logs server                    |
              |      +-----------+   +                 +   +-----------+    |
@@ -87,9 +75,7 @@ Collects all the logs from the server and parses it for making a common schema f
              +----> Database1  ||   |                 |   Database2  || <--+
                     +-----------+   |                 |   +-----------+
                     |           |   |                 |   |           |
-                    |           |   |                 |   |           |
                     +-----------+   |                 |   +-----------+
-                                    |                 |
                                     +-----------------+
 
 ```
