@@ -174,6 +174,7 @@ class InfluxDBForwarder(BaseForwarder):
         ...                    u'name': u'__main__'},
         ...             u'a': 1,
         ...             u'b': 2,
+        ...             u'__force_as_field': 'some_string',
         ...             u'msg': u'this is a dummy log'},
         ...   u'error': False,
         ...   u'error_tb': u'',
@@ -197,7 +198,7 @@ class InfluxDBForwarder(BaseForwarder):
          u'host': u'deepcompute',
          u'level': u'info'}
         >>> pprint(fields)
-        {u'data.a': 1, u'data.b': 2}
+        {u'data.__force_as_field': 'some_string', u'data.a': 1, u'data.b': 2}
         '''
         data = event.pop('data')
         data = flatten_dict({'data': data})
@@ -211,7 +212,8 @@ class InfluxDBForwarder(BaseForwarder):
             if is_number(v):
                 f[k] = v
             else:
-                t[k] = v
+                if v.startswith('__'): f[k] = eval(v.split('__', 1)[1])
+                else: t[k] = v
 
         return t, f
 
