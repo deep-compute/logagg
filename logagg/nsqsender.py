@@ -17,7 +17,7 @@ class NSQSender(object):
         self.nsq_max_depth = nsq_max_depth
         self.log = log
 
-        self.session = requests.Session()
+        self.session = requests
         self._ensure_topic(self.topic_name)
         self._ensure_topic(self.HEARTBEAT_TOPIC)
 
@@ -27,7 +27,7 @@ class NSQSender(object):
     def _ensure_topic(self, topic_name):
         u = 'http://%s/topic/create?topic=%s' % (self.nsqd_http_address, topic_name)
         try:
-            self.session.post(u)
+            self.session.post(u, timeout=1)
         except requests.exceptions.RequestException as e:
             self.log.exception('could_not_create_topic,retrying....', topic=topic_name)
             raise
