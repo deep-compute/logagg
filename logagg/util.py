@@ -65,24 +65,28 @@ def serialize_dict_keys(d, prefix=""):
 
     return keys
 
+class MarkValue(str): pass
 
 def flatten_dict(d, parent_key='', sep='.',
                     ignore_under_prefixed=True, mark_value=True):
     '''
-    >>> flatten_dict({"a": {"b": {"c": 1, "b": 2, "_d": 'ignore', "__e": "mark"} } })
-    {'a.b.__e': "__'mark'", 'a.b.b': 2, 'a.b.c': 1}
+    >>> flatten_dict({"a": {"b": {"c": 1, "b": 2, "__d": 'ignore', "_e": "mark"} } })
+    {'a.b.b': 2, 'a.b.c': 1, 'a.b._e': "'mark'"}
     '''
     items = {}
     for k in d:
-        if ignore_under_prefixed and k.startswith('_') and not k.startswith('__'):
+        if ignore_under_prefixed and k.startswith('__'):
             continue
         v = d[k]
-        if mark_value and k.startswith('__'):
-            v = '__'+repr(d[k])
+        if mark_value and k.startswith('_') and not k.startswith('__'):
+            v = MarkValue(repr(v))
 
         new_key = sep.join((parent_key, k)) if parent_key else k
         if isinstance(v, collections.MutableMapping):
-            items.update(flatten_dict(v, new_key, sep=sep))
+            items.update(flatten_dict(v, new_key, sep=sep,
+                                        ignore_under_prefixed=True,
+                                        mark_value=True)
+                            )
         else:
             items[new_key] = v
     return items

@@ -135,7 +135,7 @@ from influxdb import InfluxDBClient
 from influxdb.client import InfluxDBClientError
 from influxdb.client import InfluxDBServerError
 
-from logagg.util import flatten_dict, is_number
+from logagg.util import flatten_dict, is_number, MarkValue
 
 
 class InfluxDBForwarder(BaseForwarder):
@@ -169,12 +169,12 @@ class InfluxDBForwarder(BaseForwarder):
         >>> idbf = InfluxDBForwarder('no_host', '8086', 'deadpool',
         ...                             'chimichanga', 'logs', 'collection')
         >>> log = {u'data': {u'_': {u'file': u'log.py',
-        ...                    u'fn': u'start',
-        ...                    u'ln': 8,
-        ...                    u'name': u'__main__'},
+        ...                         u'fn': u'start',
+        ...                         u'ln': 8,
+        ...                         u'name': u'__main__'},
         ...             u'a': 1,
         ...             u'b': 2,
-        ...             u'__force_as_field': 'some_string',
+        ...             u'__ignore_this': 'some_string',
         ...             u'msg': u'this is a dummy log'},
         ...   u'error': False,
         ...   u'error_tb': u'',
@@ -198,7 +198,10 @@ class InfluxDBForwarder(BaseForwarder):
          u'host': u'deepcompute',
          u'level': u'info'}
         >>> pprint(fields)
-        {u'data.__force_as_field': 'some_string', u'data.a': 1, u'data.b': 2}
+        {u'data._': "{u'ln': 8, u'fn': u'start', u'file': u'log.py', u'name': u'__main__'}",
+         u'data.a': 1,
+         u'data.b': 2}
+
         '''
         data = event.pop('data')
         data = flatten_dict({'data': data})
@@ -209,11 +212,11 @@ class InfluxDBForwarder(BaseForwarder):
         for k in data:
             v = data[k]
 
-            if is_number(v):
+            if is_number(v) or isinstance(v, MarkValue):
                 f[k] = v
             else:
-                if v.startswith('__'): f[k] = eval(v.split('__', 1)[1])
-                else: t[k] = v
+                #if v.startswith('_'): f[k] = eval(v.split('_', 1)[1])
+                t[k] = v
 
         return t, f
 
@@ -223,10 +226,7 @@ class InfluxDBForwarder(BaseForwarder):
         >>> idbf = InfluxDBForwarder('no_host', '8086', 'deadpool',
         ...                             'chimichanga', 'logs', 'collection')
 
-        >>> valid_log = [{u'data': {u'_': {u'file': u'log.py',
-        ...                    u'fn': u'start',
-        ...                    u'ln': 8,
-        ...                    u'name': u'__main__'},
+        >>> valid_log = [{u'data': {u'_force_this_as_field': 'CXNS CNS nbkbsd',
         ...             u'a': 1,
         ...             u'b': 2,
         ...             u'msg': u'this is a dummy log'},
@@ -245,7 +245,9 @@ class InfluxDBForwarder(BaseForwarder):
         >>> pointvalues = idbf._parse_msg_for_influxdb(valid_log)
         >>> from pprint import pprint
         >>> pprint(pointvalues)
-        [{'fields': {u'data.a': 1, u'data.b': 2},
+        [{'fields': {u'data._force_this_as_field': "'CXNS CNS nbkbsd'",
+                     u'data.a': 1,
+                     u'data.b': 2},
           'measurement': u'some_log',
           'tags': {u'data.msg': u'this is a dummy log',
                    u'error_tb': u'',
