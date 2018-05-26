@@ -20,6 +20,16 @@ from logagg.formatters import RawLog
 After a downtime of collector, pygtail is missing logs from rotational files
 '''
 
+def load_formatter_fn(formatter):
+    '''
+    >>> load_formatter_fn('logagg.formatters.basescript') #doctest: +ELLIPSIS
+    <function basescript at 0x...>
+    '''
+    obj = util.load_object(formatter)
+    if not hasattr(obj, 'ispartial'):
+        obj.ispartial = util.ispartial
+    return obj
+
 class LogCollector(object):
     DESC = 'Collects the log information and sends to NSQTopic'
 
@@ -33,7 +43,6 @@ class LogCollector(object):
     SCAN_FPATTERNS_INTERVAL = 30    # How often to scan filesystem for files matching fpatterns
     HOST = socket.gethostname()
     HEARTBEAT_RESTART_INTERVAL = 30 # Wait time if heartbeat sending stops
-    #TODO check for structure in validate_log_format
 
     LOG_STRUCTURE = {
         'id': basestring,
@@ -50,8 +59,11 @@ class LogCollector(object):
         'error_tb' : basestring,
     }
 
-    def __init__(self, fpaths, nsq_sender,
-                heartbeat_interval, log=util.DUMMY_LOGGER):
+    def __init__(self,
+                fpaths,
+                heartbeat_interval,
+                nsq_sender=util.DUMMY,
+                log=util.DUMMY):
         self.fpaths = fpaths
         self.nsq_sender = nsq_sender
         self.heartbeat_interval = heartbeat_interval
@@ -64,52 +76,168 @@ class LogCollector(object):
         self.queue = Queue.Queue(maxsize=self.QUEUE_MAX_SIZE)
 
     def _remove_redundancy(self, log):
+        """Removes duplicate data from 'data' inside log dict and brings it
+        out.
+
+        >>> lc = LogCollector('file=/path/to/log_file.log:formatter=logagg.formatters.basescript', 30)
+
+        >>> log = {'id' : 46846876, 'type' : 'log',
+        ...         'data' : {'a' : 1, 'b' : 2, 'type' : 'metric'}}
+        >>> lc._remove_redundancy(log)
+        {'data': {'a': 1, 'b': 2}, 'type': 'metric', 'id': 46846876}
+        """
         for key in log:
             if key in log and key in log['data']:
                 log[key] = log['data'].pop(key)
         return log
 
     def validate_log_format(self, log):
+        '''
+        >>> lc = LogCollector('file=/path/to/file.log:formatter=logagg.formatters.basescript', 30)
+
+        >>> incomplete_log = {'data' : {'x' : 1, 'y' : 2},
+        ...                     'raw' : 'Not all keys present'}
+        >>> lc.validate_log_format(incomplete_log)
+        'failed'
+
+        >>> redundant_log = {'one_invalid_key' : 'Extra information',
+        ...  'data': {'x' : 1, 'y' : 2},
+        ...  'error': False,
+        ...  'error_tb': '',
+        ...  'event': 'event',
+        ...  'file': '/path/to/file.log',
+        ...  'formatter': 'logagg.formatters.mongodb',
+        ...  'host': 'deepcompute-ThinkPad-E470',
+        ...  'id': '0112358',
+        ...  'level': 'debug',
+        ...  'raw': 'some log line here',
+        ...  'timestamp': '2018-04-07T14:06:17.404818',
+        ...  'type': 'log'}
+        >>> lc.validate_log_format(redundant_log)
+        'failed'
+
+        >>> correct_log = {'data': {'x' : 1, 'y' : 2},
+        ...  'error': False,
+        ...  'error_tb': '',
+        ...  'event': 'event',
+        ...  'file': '/path/to/file.log',
+        ...  'formatter': 'logagg.formatters.mongodb',
+        ...  'host': 'deepcompute-ThinkPad-E470',
+        ...  'id': '0112358',
+        ...  'level': 'debug',
+        ...  'raw': 'some log line here',
+        ...  'timestamp': '2018-04-07T14:06:17.404818',
+        ...  'type': 'log'}
+        >>> lc.validate_log_format(correct_log)
+        'passed'
+        '''
+
+        keys_in_log = set(log)
+        keys_in_log_structure = set(self.LOG_STRUCTURE)
+        try:
+            assert (keys_in_log == keys_in_log_structure)
+        except AssertionError as e:
+            self.log.warning('formatted_log_structure_rejected' ,
+                                key_not_found = list(keys_in_log_structure-keys_in_log),
+                                extra_keys_found = list(keys_in_log-keys_in_log_structure),
+                                num_logs=1,
+                                type='metric')
+            return 'failed'
+
         for key in log:
-            assert (key in self.LOG_STRUCTURE)
             try:
                 assert isinstance(log[key], self.LOG_STRUCTURE[key])
             except AssertionError as e:
-                self.log.exception('formatted_log_structure_rejected' , log=log)
+                self.log.warning('formatted_log_structure_rejected' ,
+                                    key_datatype_not_matched = key,
+                                    datatype_expected = type(self.LOG_STRUCTURE[key]),
+                                    datatype_got = type(log[key]),
+                                    num_logs=1,
+                                    type='metric')
+                return 'failed'
+
+        return 'passed'
+
+    def _full_from_frags(self, frags):
+        full_line = '\n'.join([l for l, _ in frags])
+        line_info = frags[-1][-1]
+        return full_line, line_info
+
+    def _iter_logs(self, freader, fmtfn):
+        # FIXME: does not handle partial lines
+        # at the start of a file properly
+
+        frags = []
+
+        for line_info in freader:
+            line = line_info['line'][:-1] # remove new line char at the end
+
+            if not fmtfn.ispartial(line) and frags:
+                yield self._full_from_frags(frags)
+                frags = []
+
+            frags.append((line, line_info))
+
+        if frags:
+            yield self._full_from_frags(frags)
+
+    def assign_default_log_values(self, fpath, line, formatter):
+        '''
+        >>> lc = LogCollector('file=/path/to/log_file.log:formatter=logagg.formatters.basescript', 30)
+        >>> from pprint import pprint
+
+        >>> formatter = 'logagg.formatters.mongodb'
+        >>> fpath = '/var/log/mongodb/mongodb.log'
+        >>> line = 'some log line here'
+
+        >>> default_log = lc.assign_default_log_values(fpath, line, formatter)
+        >>> pprint(default_log) #doctest: +ELLIPSIS
+        {'data': {},
+         'error': False,
+         'error_tb': '',
+         'event': 'event',
+         'file': '/var/log/mongodb/mongodb.log',
+         'formatter': 'logagg.formatters.mongodb',
+         'host': '...',
+         'id': None,
+         'level': 'debug',
+         'raw': 'some log line here',
+         'timestamp': '...',
+         'type': 'log'}
+        '''
+        return dict(
+            id=None,
+            file=fpath,
+            host=self.HOST,
+            formatter=formatter,
+            event='event',
+            data={},
+            raw=line,
+            timestamp=datetime.datetime.utcnow().isoformat(),
+            type='log',
+            level='debug',
+            error= False,
+            error_tb='',
+          )
 
     @keeprunning(LOG_FILE_POLL_INTERVAL, on_error=util.log_exception)
     def collect_log_lines(self, log_file):
         L = log_file
         fpath = L['fpath']
-        self.log.debug('tracking_file_for_log_lines', fpath=fpath)
+        fmtfn = L['formatter_fn']
+        formatter = L['formatter']
 
         freader = Pygtail(fpath)
-        for line_info in freader:
-            line = line_info['line'][:-1] # remove new line char at the end
-
-            # assign default values
-            log = dict(
-                    id=None,
-                    file=fpath,
-                    host=self.HOST,
-                    formatter=L['formatter'],
-                    event='event',
-                    data={},
-                    raw=line,
-                    timestamp=datetime.datetime.utcnow().isoformat(),
-                    type='log',
-                    level='debug',
-                    error= False,
-                    error_tb='',
-                  )
+        for line, line_info in self._iter_logs(freader, fmtfn):
+            log = self.assign_default_log_values(fpath, line, formatter)
 
             try:
-                _log = L['formatter_fn'](line)
+                _log = fmtfn(line)
 
                 if isinstance(_log, RawLog):
                     formatter, raw_log = _log['formatter'], _log['raw']
                     log.update(_log)
-                    _log = util.load_object(formatter)(raw_log)
+                    _log = load_formatter_fn(formatter)(raw_log)
 
                 log.update(_log)
             except (SystemExit, KeyboardInterrupt) as e: raise
@@ -122,7 +250,7 @@ class LogCollector(object):
                 log['id'] = uuid.uuid1().hex
 
             log = self._remove_redundancy(log)
-            self.validate_log_format(log)
+            if self.validate_log_format(log) == 'failed': continue
 
             self.queue.put(dict(log=json.dumps(log),
                                 freader=freader, line_info=line_info))
@@ -175,10 +303,8 @@ class LogCollector(object):
         self.log.debug('got_msgs_from_mem_queue')
         return msgs_pending, msgs_nbytes, read_from_q
 
-
     @keeprunning(0, on_error=util.log_exception) # FIXME: what wait time var here?
     def send_to_nsq(self, state):
-        self.log.debug('send_to_nsq')
         msgs = []
         should_push = False
 
@@ -199,10 +325,14 @@ class LogCollector(object):
                             msgs_nbytes=msgs_nbytes)
 
         try:
-            self.log.debug('trying_to_push_to_nsq', msgs_length=len(msgs))
-            self.nsq_sender.handle_logs(msgs)
+            if isinstance(self.nsq_sender, type(util.DUMMY)):
+                for m in msgs:
+                    self.log.info('final_log_format', log=m['log'])
+            else:
+                self.log.debug('trying_to_push_to_nsq', msgs_length=len(msgs))
+                self.nsq_sender.handle_logs(msgs)
+                self.log.debug('pushed_to_nsq', msgs_length=len(msgs))
             self.confirm_success(msgs)
-            self.log.debug('pushed_to_nsq', msgs_length=len(msgs))
             msgs = msgs_pending
             state.last_push_ts = time.time()
         except (SystemExit, KeyboardInterrupt): raise
@@ -225,8 +355,31 @@ class LogCollector(object):
     @keeprunning(SCAN_FPATTERNS_INTERVAL, on_error=util.log_exception)
     def _scan_fpatterns(self, state):
         '''
-        fpaths = 'file=/var/log/nginx/access.log:formatter=logagg.formatters.nginx_access'
-        fpattern = '/var/log/nginx/access.log'
+        For a list of given fpatterns, this starts a thread
+        collecting log lines from file
+
+        >>> os.path.isfile = lambda path: path == '/path/to/log_file.log'
+        >>> lc = LogCollector('file=/path/to/log_file.log:formatter=logagg.formatters.basescript', 30)
+
+        >>> print(lc.fpaths)
+        file=/path/to/log_file.log:formatter=logagg.formatters.basescript
+
+        >>> print('formatters loaded:', lc.formatters)
+        {}
+        >>> print('log file reader threads started:', lc.log_reader_threads)
+        {}
+        >>> state = AttrDict(files_tracked=list())
+        >>> print('files bieng tracked:', state.files_tracked)
+        []
+
+
+        >>> if not state.files_tracked:
+        >>>     lc._scan_fpatterns(state)
+        >>>     print('formatters loaded:', lc.formatters)
+        >>>     print('log file reader threads started:', lc.log_reader_threads)
+        >>>     print('files bieng tracked:', state.files_tracked)
+
+        
         '''
         for f in self.fpaths:
             fpattern, formatter =(a.split('=')[1] for a in f.split(':', 1))
@@ -234,28 +387,28 @@ class LogCollector(object):
             # TODO code for scanning fpatterns for the files not yet present goes here
             fpaths = glob.glob(fpattern)
             # Load formatter_fn if not in list
+            fpaths = list(set(fpaths) - set(state.files_tracked))
             for fpath in fpaths:
-                if fpath not in state.files_tracked:
-                    try:
-                        formatter_fn = self.formatters.get(formatter,
-                                      util.load_object(formatter))
-                        self.log.info('found_formatter_fn', fn=formatter)
-                        self.formatters[formatter] = formatter_fn
-                    except (SystemExit, KeyboardInterrupt): raise
-                    except (ImportError, AttributeError):
-                        self.log.exception('formatter_fn_not_found', fn=formatter)
-                        sys.exit(-1)
-                    # Start a thread for every file
-                    self.log.info('found_log_file', log_file=fpath)
-                    log_f = dict(fpath=fpath, fpattern=fpattern,
-                                    formatter=formatter, formatter_fn=formatter_fn)
-                    log_key = (fpath, fpattern, formatter)
-                    if log_key not in self.log_reader_threads:
-                        self.log.info('starting_collect_log_lines_thread', log_key=log_key)
-                        # There is no existing thread tracking this log file. Start one
-                        log_reader_thread = util.start_daemon_thread(self.collect_log_lines, (log_f,))
-                        self.log_reader_threads[log_key] = log_reader_thread
-                    state.files_tracked.append(fpath)
+                try:
+                    formatter_fn = self.formatters.get(formatter,
+                                  load_formatter_fn(formatter))
+                    self.log.info('found_formatter_fn', fn=formatter)
+                    self.formatters[formatter] = formatter_fn
+                except (SystemExit, KeyboardInterrupt): raise
+                except (ImportError, AttributeError):
+                    self.log.exception('formatter_fn_not_found', fn=formatter)
+                    sys.exit(-1)
+                # Start a thread for every file
+                self.log.info('found_log_file', log_file=fpath)
+                log_f = dict(fpath=fpath, fpattern=fpattern,
+                                formatter=formatter, formatter_fn=formatter_fn)
+                log_key = (fpath, fpattern, formatter)
+                if log_key not in self.log_reader_threads:
+                    self.log.info('starting_collect_log_lines_thread', log_key=log_key)
+                    # There is no existing thread tracking this log file. Start one
+                    log_reader_thread = util.start_daemon_thread(self.collect_log_lines, (log_f,))
+                    self.log_reader_threads[log_key] = log_reader_thread
+                state.files_tracked.append(fpath)
         time.sleep(self.SCAN_FPATTERNS_INTERVAL)
 
     @keeprunning(HEARTBEAT_RESTART_INTERVAL, on_error=util.log_exception)
