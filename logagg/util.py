@@ -113,8 +113,13 @@ def ispartial(x):
     True
     >>> ispartial('   <white_space> <traceback:> <some_line>')
     True
+    >>> ispartial('')
+    False
     '''
-    if x[0] in spaces:
-        return True
+    try:
+        if x[0] in spaces:
+            return True
+    except IndexError:
+        return False
     else:
         return False

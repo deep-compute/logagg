@@ -379,7 +379,7 @@ class LogCollector(object):
         >>>     print('log file reader threads started:', lc.log_reader_threads)
         >>>     print('files bieng tracked:', state.files_tracked)
 
-        
+
         '''
         for f in self.fpaths:
             fpattern, formatter =(a.split('=')[1] for a in f.split(':', 1))
@@ -414,9 +414,17 @@ class LogCollector(object):
     @keeprunning(HEARTBEAT_RESTART_INTERVAL, on_error=util.log_exception)
     def send_heartbeat(self, state):
         # Sends continuous heartbeats to a seperate topic in nsq
+        if self.log_reader_threads:
+            for f in self.log_reader_threads:
+                files_tracked = self.log_reader_threads.keys()
+        else:
+            files_tracked = ''
+
         heartbeat_payload = {'host': self.HOST,
                             'heartbeat_number': state.heartbeat_number,
-                            'timestamp': time.time()
+                            'timestamp': time.time(),
+                            'nsq_topic': self.nsq_sender.topic_name,
+                            'files_tracked': files_tracked
                             }
         self.nsq_sender.handle_heartbeat(heartbeat_payload)
         state.heartbeat_number += 1
