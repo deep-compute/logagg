@@ -155,9 +155,9 @@ Collects all the logs from the server and parses it for making a common schema f
     - **Note**: Replace **<nsq-server-ip-or-DNS>** with the ip of `nsq` server eg.: **192.168.0.211**
     - **Note**: **--volume** argument is to mount local directory of log file into `Docker` `container`
     - **Note**: **--hostname** argument is to use the same hostname and not the docker container hostname
-- We can check message traffic at `nsq` by going through the link:
+- You can check message traffic at `nsq` by going through the link:
         **http://<nsq-server-ip-or-DNS>:4171/** for **localhost** see [here](http://localhost:4171/)
-- We can see the collected logs in realtime using the following command:
+- You can see the collected logs in realtime using the following command:
     ```bash
     $ nsq_tail --topic=logagg --channel=test --lookupd-http-address=<nsq-server-ip-or-DNS>:4161
     ```
@@ -198,7 +198,7 @@ Collects all the logs from the server and parses it for making a common schema f
     - **NOTE**: Replace **<nsq-server-ip-or-DNS>** with the ip of `nsq` server
     - **NOTE**: Replace **<mongoDB-server-ip-or-DNS>** with the ip of `mongoDB` server eg.: **192.168.0.111**
     - **NOTE**: **--volume** argument is to mount local directory of log file into eg.: **192.168.0.111**
-- We can check records in mongoDB 
+- You can check records in mongoDB 
     ```mongo
     $ mongo -u deadpool -p chimichanga
     ....
@@ -450,7 +450,7 @@ $ #Now write your formatter functions inside the formatters.py file
 ---
 
 ### Debugging
-We can store logagg collector/forwarder logs into files using [basescript](https://github.com/deep-compute/basescript) --log-file argument or [docker file log driver](https://github.com/supriyopaul/docker-file-log-driver)
+You can store logagg collector/forwarder logs into files using [basescript](https://github.com/deep-compute/basescript) --log-file argument or [docker file log driver](https://github.com/supriyopaul/docker-file-log-driver)
 ```bash
 $ sudo logagg --log-file /var/log/logagg/collector.log collect file=/var/log/serverstats/serverstats.log:formatter=logagg.formatters.basescript --nsqtopic logagg --nsqd-http-address <nsq-server-ip-or-DNS>:4151
 ```
@@ -460,7 +460,18 @@ docker run
 ```bash
 $ sudo docker run --name collector --hostname $HOSTNAME --volume /var/log/:/var/log/ --restart unless-stopped --label formatter=logagg.formatters.basescript --log-driver file-log-driver --log-opt labels=formatter --log-opt fpath=/logagg/collector.log --log-opt max-size=100 deepcompute/logagg logagg collect --file file=/var/log/serverstats.log:formatter=logagg.formatters.basescript --nsqtopic serverstats --nsqd-http-address <nsq-server-ip-or-DNS>:4151
 ```
+If there are multiple files being tracked by multiple collectors on multiple nodes, the collector information can be seen in "Heartbeat" topic of NSQ.
+Every running collector sends a hearbeat to this topic (default interval = 30 seconds). The heartbeat format is as follows:
+* `timestamp` : Timestamp of the recieved heartbeat.
+* `heartbeat_number` : The heartbeat number since the collector started running.
+* `host` : Hostname of the node on which the collector is running.
+* `nsq_topic` : The nsq topic which the collector is using.
+* `files_tracked` : list of files that are being tracked by the collector followed by the fomatter.
 
+You can run the following command to see the information:
+```bash
+$ nsq_tail --topic=Heartbeat --channel=test --lookupd-http-address=<nsq-server-ip-or-DNS>:4161
+```
 ## Build on logagg
 
 You're more than welcome to hack on this:-)
