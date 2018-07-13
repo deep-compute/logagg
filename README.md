@@ -6,8 +6,10 @@ Collects all the logs from the server and parses it for making a common schema f
 
 
 ----------
-
-
+## Prerequisites
+* We expect users to follow [Best practices](https://github.com/deep-compute/logagg/issues/85) for logging their application
+* Most importantly, do structured logging. Since, parsing/formatting logs is way easier that way.
+----------
 ## Components/Architecture/Terminology
 
 * `files` : Log files which are being tracked by logagg
@@ -21,6 +23,7 @@ Collects all the logs from the server and parses it for making a common schema f
 * `forwarders` : The parsers that take messages and formats it for storing at `target`(s) databases
 * `targets` : The databases that store the logs finally so that we can query on them easily
 
+![](https://i.imgur.com/tgY0zjp.jpg)
 
 ----------
 
@@ -32,6 +35,8 @@ Collects all the logs from the server and parses it for making a common schema f
 * Options to add custom `formatters` & `target` databases
 * File poll if log file not yet generated
 * Works on rotational log files
+* Custom `formatters` to support parsing of any log file.
+* Custom `forwarders` to support usage of any database/storage-engine file.
 * Output format of processed log lines (dictionary)
     * `id` (str) - A unique id per log with time ordering. Useful to avoid storing duplicates.
     * `timestamp` (str) - ISO Format time. eg:
@@ -66,53 +71,30 @@ Collects all the logs from the server and parses it for making a common schema f
 - Run the following commands to install :
     ```
     $ sudo apt-get update
-
     $ sudo apt-get install \
         apt-transport-https \
         ca-certificates \
         curl \
         software-properties-common
-
     $ curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
-
     $ sudo add-apt-repository \
        "deb [arch=amd64] https://download.docker.com/linux/ubuntu \
        $(lsb_release -cs) \
        stable"
-
-
     $ sudo apt-get update
-
     $ sudo apt-get install docker-ce
     ```
 - Check Docker version >= 17.12.1
     ```
-    $ sudo docker version 
-    Client:
-     Version:	17.12.1-ce
-     API version:	1.35
-     Go version:	go1.9.4
-     Git commit:	7390fc6
-     Built:	Tue Feb 27 22:17:40 2018
-     OS/Arch:	linux/amd64
-
-    Server:
-     Engine:
-      Version:	17.12.1-ce
-      API version:	1.35 (minimum version 1.12)
-      Go version:	go1.9.4
-      Git commit:	7390fc6
-      Built:	Tue Feb 27 22:16:13 2018
-      OS/Arch:	linux/amd64
-      Experimental:	false
-
+    $ sudo docker -v
+    Docker version 18.03.1-ce, build 9ee9f40
     ```
 
 ### Install the `logagg` package, at where we collect the logs and at where we forward the logs:
 - Run the following command to **pip** install `logagg`: 
     ```
-    $ sudo -H pip install https://github.com/deep-compute/pygtail/tarball/master/#egg=pygtail-0.6.1
-    $ sudo -H pip install logagg
+    $ sudo pip install https://github.com/deep-compute/pygtail/tarball/master/#egg=pygtail-0.6.1
+    $ sudo pip install logagg
     ```
     #### or
 - Run the following command to pull **docker** image of `logagg`:
@@ -168,13 +150,17 @@ Collects all the logs from the server and parses it for making a common schema f
     ##### or
 - Docker run
     ```bash
-    $ sudo docker run --name collector --volume /var/log:/var/log deepcompute/logagg logagg collect --file file=/var/log/serverstats.log:formatter=logagg.formatters.basescript --nsqtopic logagg --nsqd-http-address <nsq-server-ip-or-DNS>:4151
+    $ sudo docker run --name collector --hostname $HOSTNAME --volume /var/log:/var/log deepcompute/logagg logagg collect --file file=/var/log/serverstats.log:formatter=logagg.formatters.basescript --nsqtopic logagg --nsqd-http-address <nsq-server-ip-or-DNS>:4151
     ```
     - **Note**: Replace **<nsq-server-ip-or-DNS>** with the ip of `nsq` server eg.: **192.168.0.211**
     - **Note**: **--volume** argument is to mount local directory of log file into `Docker` `container`
-- We can check message traffic at `nsq` by going through the link:
+    - **Note**: **--hostname** argument is to use the same hostname and not the docker container hostname
+- You can check message traffic at `nsq` by going through the link:
         **http://<nsq-server-ip-or-DNS>:4171/** for **localhost** see [here](http://localhost:4171/)
-         
+- You can see the collected logs in realtime using the following command:
+    ```bash
+    $ nsq_tail --topic=logagg --channel=test --lookupd-http-address=<nsq-server-ip-or-DNS>:4161
+    ```
 ### Forward logs to `target` database(s) from `nsq`
 #### For forwarding logs we need a database instance up
 - We will use `mongoDB`
@@ -189,7 +175,7 @@ Collects all the logs from the server and parses it for making a common schema f
         .
         .
         2018-03-01T03:47:54.027-0800 I CONTROL  [initandlisten] 
-        > 
+        > use admin
         > db.createUser(
         ...    {
         ...      user: "deadpool",
@@ -212,7 +198,7 @@ Collects all the logs from the server and parses it for making a common schema f
     - **NOTE**: Replace **<nsq-server-ip-or-DNS>** with the ip of `nsq` server
     - **NOTE**: Replace **<mongoDB-server-ip-or-DNS>** with the ip of `mongoDB` server eg.: **192.168.0.111**
     - **NOTE**: **--volume** argument is to mount local directory of log file into eg.: **192.168.0.111**
-- We can check records in mongoDB 
+- You can check records in mongoDB 
     ```mongo
     $ mongo -u deadpool -p chimichanga
     ....
@@ -365,23 +351,14 @@ time                request_time
 1508770751000000000 0.026
 1508770753000000000 0.272
 1508770754000000000 0.028
-1508770756000000000 0.026
-1508770756000000000 0.007
-1508770757000000000 0.511
-1508770758000000000 0
-1508770761000000000 0.228
-1508770761000000000 0.247
 ```
-
 ---
 
 ### Types of handlers we support
 | Formatter-name | Comments |
 | -------- | -------- |
 |   nginx_access   | See Configuration [here](https://github.com/deep-compute/logagg/issues/61)    |
-|django||
 |mongodb||
-|elasticsearch||
 |basescript||
 |docker_log_file_driver|See example [here](https://github.com/deep-compute/serverstats/issues/6)|
 ### Types of forwarders we support
@@ -389,6 +366,12 @@ time                request_time
 | -------- | -------- |
 |MongoDBForwarder|`--target forwarder=logagg.forwarders.MongoDBForwarder:host=<mongoDB-server-ip>:port=<mongod-port-number>:user=<user-name>:password=<passwd>:db=<db-name>:collection=<collection name>`|
 |InfluxDBForwarder|`--target forwarder=logagg.forwarders.InfluxDBForwarder:host=<influxDB-server-ip>:port=<influxd-port-number>:user=<user-name>:password=<passwd>:db=<db-name>:collection=nothing`|
+
+**Rules to follow when using InfluxDBForwarder:**
+1. Only logs with `"type":"metric"` go to InfluxDB
+2. key-value pairs where value is a string type becomes a `tag` in InfluxDB database and values having numerical values are considered as `fields`. See [link](https://docs.influxdata.com/influxdb/v1.5/concepts/glossary/#field-key) for more information on tags and fields
+3. Naming a key starting with single '_' in the beggining will force them as fields even though they are strings.
+4. Naming a key starting with double '__' in the beggining will not be forwarded to InfluxDB
 
 **Note:** For using multiple forwarders use the format ``--target <forwarder1> <forwarder2>`` and not ``--target <forwarder1> --target <forwarder2>``
 
@@ -456,17 +439,39 @@ $ #Now write your formatter functions inside the formatters.py file
      'timestamp': '2018-02-07T06:37:00.297610Z'}
     ```
 6. Pseudo logagg collect commands:
-    ```
+    ```bash
     $ sudo logagg collect --file file=logfile.log:myformatters.formatters.sample_formatter --nsqtopic logagg --nsqd-http-address localhost:4151
     ```
     **or**
     docker run 
-    ```
+    ```bash
     $ sudo docker run --name collector --env PYTHONPATH=$PYTHONPATH --volume /var/log:/var/log deepcompute/logagg logagg collect --file file=logfile.log:myformatters.formatters.sample_formatter --nsqtopic logagg --nsqd-http-address <nsq-server-ip-or-DNS>:4151
     ```
-
 ---
 
+### Debugging
+You can store logagg collector/forwarder logs into files using [basescript](https://github.com/deep-compute/basescript) --log-file argument or [docker file log driver](https://github.com/supriyopaul/docker-file-log-driver)
+```bash
+$ sudo logagg --log-file /var/log/logagg/collector.log collect file=/var/log/serverstats/serverstats.log:formatter=logagg.formatters.basescript --nsqtopic logagg --nsqd-http-address <nsq-server-ip-or-DNS>:4151
+```
+**or**
+docker run
+    
+```bash
+$ sudo docker run --name collector --hostname $HOSTNAME --volume /var/log/:/var/log/ --restart unless-stopped --label formatter=logagg.formatters.basescript --log-driver file-log-driver --log-opt labels=formatter --log-opt fpath=/logagg/collector.log --log-opt max-size=100 deepcompute/logagg logagg collect --file file=/var/log/serverstats.log:formatter=logagg.formatters.basescript --nsqtopic serverstats --nsqd-http-address <nsq-server-ip-or-DNS>:4151
+```
+If there are multiple files being tracked by multiple collectors on multiple nodes, the collector information can be seen in "Heartbeat" topic of NSQ.
+Every running collector sends a hearbeat to this topic (default interval = 30 seconds). The heartbeat format is as follows:
+* `timestamp` : Timestamp of the recieved heartbeat.
+* `heartbeat_number` : The heartbeat number since the collector started running.
+* `host` : Hostname of the node on which the collector is running.
+* `nsq_topic` : The nsq topic which the collector is using.
+* `files_tracked` : list of files that are being tracked by the collector followed by the fomatter.
+
+You can run the following command to see the information:
+```bash
+$ nsq_tail --topic=Heartbeat --channel=test --lookupd-http-address=<nsq-server-ip-or-DNS>:4161
+```
 ## Build on logagg
 
 You're more than welcome to hack on this:-)
