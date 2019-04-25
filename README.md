@@ -91,7 +91,7 @@ Collects all the logs from the server and parses it for making a common schema f
     ```
 
 ### Install the `logagg` package, at where we collect the logs and at where we forward the logs:
-- Run the following command to **pip** install `logagg`: 
+- Run the following command to **pip** install `logagg`:
     ```
     $ sudo pip install https://github.com/deep-compute/pygtail/tarball/master/#egg=pygtail-0.6.1
     $ sudo pip install logagg
@@ -126,7 +126,7 @@ Collects all the logs from the server and parses it for making a common schema f
 **NOTE:** Run each command in a seperate Terminal window
 
 - We will use [serverstats](https://github.com/deep-compute/serverstats)
-    - Install `serverstats` 
+    - Install `serverstats`
         ```BASH
         $ sudo pip install serverstats
         ```
@@ -140,7 +140,7 @@ Collects all the logs from the server and parses it for making a common schema f
 - Normal run
     ```bash
     $ sudo logagg collect --file file=/var/log/serverstats.log:formatter=logagg.formatters.basescript --nsqtopic logagg --nsqd-http-address localhost:4151
-    
+
     2018-03-01T08:59:25.768443Z [info     ] Created topic                  _={'ln': 33, 'file': '/usr/local/lib/python2.7/dist-packages/logagg/nsqsender.py', 'name': 'logagg.nsqsender', 'fn': '_ensure_topic'} id=20180301T085925_d799dd6c-1d2e-11e8-bcf1-000c2925b24d topic=logagg type=log
     2018-03-01T08:59:25.771411Z [info     ] Created topic                  _={'ln': 33, 'file': '/usr/local/lib/python2.7/dist-packages/logagg/nsqsender.py', 'name': 'logagg.nsqsender', 'fn': '_ensure_topic'} id=20180301T085925_d799dd6d-1d2e-11e8-bcf1-000c2925b24d topic=Heartbeat#ephemeral type=log
     2018-03-01T08:59:25.772415Z [info     ] found_formatter_fn             _={'ln': 208, 'file': '/usr/local/lib/python2.7/dist-packages/logagg/collector.py', 'name': 'logagg.collector', 'fn': '_scan_fpatterns'} fn=logagg.formatters.basescript id=20180301T085925_d79a74c0-1d2e-11e8-bcf1-000c2925b24d type=log
@@ -165,7 +165,7 @@ Collects all the logs from the server and parses it for making a common schema f
 #### For forwarding logs we need a database instance up
 - We will use `mongoDB`
     - Install [`mongoDB`](https://docs.mongodb.com/manual/tutorial/install-mongodb-on-linux/)
-    - Start `mongoDB` 
+    - Start `mongoDB`
         ```
         $ sudo mongod --dbpath <database-path> --bind_ip_all
         ```
@@ -174,7 +174,7 @@ Collects all the logs from the server and parses it for making a common schema f
         $ mongo
         .
         .
-        2018-03-01T03:47:54.027-0800 I CONTROL  [initandlisten] 
+        2018-03-01T03:47:54.027-0800 I CONTROL  [initandlisten]
         > use admin
         > db.createUser(
         ...    {
@@ -198,7 +198,7 @@ Collects all the logs from the server and parses it for making a common schema f
     - **NOTE**: Replace **<nsq-server-ip-or-DNS>** with the ip of `nsq` server
     - **NOTE**: Replace **<mongoDB-server-ip-or-DNS>** with the ip of `mongoDB` server eg.: **192.168.0.111**
     - **NOTE**: **--volume** argument is to mount local directory of log file into eg.: **192.168.0.111**
-- You can check records in mongoDB 
+- You can check records in mongoDB
     ```mongo
     $ mongo -u deadpool -p chimichanga
     ....
@@ -297,7 +297,7 @@ $ python
           'message': 'shutting down replication subsystems',
           'severity': 'I',
           'timestamp': '2017-08-17T07:56:33.489+0200'},
- 'timestamp': '2017-08-17T07:56:33.489+0200'} 
+ 'timestamp': '2017-08-17T07:56:33.489+0200'}
 ```
 
 ### How to check records at MongoDB?
@@ -323,7 +323,7 @@ $ python
 ```
 
 - Arbitrary example to get the records for `nginx`:
-```mongodb  
+```mongodb
 > use nginx
 > db.cluster_logs_and_metrics.find({'handler': 'logagg.handlers.nginx_access', 'data.request_time' : {$gt: 0}}).count()
 751438
@@ -414,7 +414,7 @@ $ #Now write your formatter functions inside the formatters.py file
 3. The 'dict()' should only contain keys which are mentioned in the above [log structure](https://github.com/deep-compute/logagg#features).
 4. Sample formatter functions:
     ```python
-    import json 
+    import json
     import re
 
     sample_log_line = '2018-02-07T06:37:00.297610Z [Some_event] [Info] [Hello_there]'
@@ -432,7 +432,7 @@ $ #Now write your formatter functions inside the formatters.py file
                      data = data,
                     )
      ```
-  To see more examples, look [here](https://github.com/deep-compute/logagg/blob/master/logagg/formatters.py) 
+  To see more examples, look [here](https://github.com/deep-compute/logagg/blob/master/logagg/formatters.py)
 
 5. Check if the custom handler works in `python interpreter` like for logagg.
     ```python
@@ -451,7 +451,7 @@ $ #Now write your formatter functions inside the formatters.py file
     $ sudo logagg collect --file file=logfile.log:myformatters.formatters.sample_formatter --nsqtopic logagg --nsqd-http-address localhost:4151
     ```
     **or**
-    docker run 
+    docker run
     ```bash
     $ sudo docker run --name collector --env PYTHONPATH=$PYTHONPATH --volume /var/log:/var/log deepcompute/logagg logagg collect --file file=logfile.log:myformatters.formatters.sample_formatter --nsqtopic logagg --nsqd-http-address <nsq-server-ip-or-DNS>:4151
     ```
@@ -464,7 +464,7 @@ $ sudo logagg --log-file /var/log/logagg/collector.log collect file=/var/log/ser
 ```
 **or**
 docker run
-    
+
 ```bash
 $ sudo docker run --name collector --hostname $HOSTNAME --volume /var/log/:/var/log/ --restart unless-stopped --label formatter=logagg.formatters.basescript --log-driver file-log-driver --log-opt labels=formatter --log-opt fpath=/logagg/collector.log --log-opt max-size=100 deepcompute/logagg logagg collect --file file=/var/log/serverstats.log:formatter=logagg.formatters.basescript --nsqtopic serverstats --nsqd-http-address <nsq-server-ip-or-DNS>:4151
 ```
