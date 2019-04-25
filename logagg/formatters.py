@@ -56,11 +56,11 @@ def haproxy(line):
     log['status'] = _line[10].strip()
     log['bytes_read'] = float(_line[11].strip())
 
-    log['headers'] = re.findall(r'{(.*)}', line)
+    log['_headers'] = re.findall(r'{(.*)}', line)
     log['haproxy_server'] = _line[3].strip()
 
     log['method'] = _line[-3].strip('"').strip()
-    log['api'] = _line[-2].strip()
+    log['_api'] = _line[-2].strip()
 
     return dict(
         data=log,
