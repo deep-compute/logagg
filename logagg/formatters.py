@@ -20,19 +20,30 @@ def haproxy(line):
     #TODO Handle all message formats
     '''
     >>> import pprint
-    >>> input_line1 = 'Apr 24 00:00:02 vishy3 haproxy[12298]: 192.99.63.3:48660 [24/Apr/2019:00:00:02.358] pre-staging~ pre-staging_doccoocurr_db_backend/pre-staging_active_db_doccoocurr_3 261/0/2/8/271 200 2406 - - ---- 4/4/0/1/0 0/0 {C0633F03:BE14_4246B1BA:01BB_5CBFA702_E58B3:300A|||HMAC vishy@nference.net:JlLTlbtxl3P6/TM16VtWO4V9Hu2uYMlxZ0UN3Can48A=|vishy@nference.net|2018} "GET /doccoocurr/api/v1/get_doc_ids?token1=imatinib HTTP/1.1"'
+    >>> input_line1 = 'Apr 24 00:00:02 node haproxy[12298]: 1.1.1.1:48660 [24/Apr/2019:00:00:02.358] pre-staging~ pre-staging_doc/pre-staging_active 261/0/2/8/271 200 2406 - - ---- 4/4/0/1/0 0/0 {AAAAAA:AAAAA_AAAAA:AAAAA_AAAAA_AAAAA:300A||| user@mail.net:sdasdasdasdsdasAHDivsjd=|user@mail.net|2018} "GET /doc/api/get?call=apple HTTP/1.1"'
     >>> output_line1 = haproxy(input_line1)
     >>> pprint.pprint(output_line1)
-    {'data': {'api': '/doccoocurr/api/v1/get_doc_ids?token1=imatinib',
-	      'backend': 'pre-staging_doccoocurr_db_backend/pre-staging_active_db_doccoocurr_3',
+    {'data': {'Tc': 2.0,
+	      'Tq': 261.0,
+	      'Tr': 8.0,
+	      'Tw': 0.0,
+	      '_api': '/doc/api/get?call=apple',
+	      '_headers': ['AAAAAA:AAAAA_AAAAA:AAAAA_AAAAA_AAAAA:300A||| user@mail.net:sdasdasdasdsdasAHDivsjd=|user@mail.net|2018'],
+	      'actconn': 4,
+	      'backend': 'pre-staging_doc/pre-staging_active',
+	      'backend_queue': 0,
+	      'beconn': 1,
 	      'bytes_read': 2406.0,
 	      'client_port': '48660',
-	      'client_server': '192.99.63.3',
+	      'client_server': '1.1.1.1',
+	      'feconn': 4,
 	      'front_end': 'pre-staging~',
-	      'haproxy_server': 'vishy3',
-	      'headers': ['C0633F03:BE14_4246B1BA:01BB_5CBFA702_E58B3:300A|||HMAC vishy@nference.net:JlLTlbtxl3P6/TM16VtWO4V9Hu2uYMlxZ0UN3Can48A=|vishy@nference.net|2018'],
+	      'haproxy_server': 'node',
 	      'method': 'GET',
 	      'resp_time': 271.0,
+	      'retries': 0,
+	      'srv_conn': 0,
+	      'srv_queue': 0,
 	      'status': '200',
 	      'timestamp': '2019-04-24T00:00:02.358000'},
      'event': 'haproxy_event',
@@ -52,6 +63,10 @@ def haproxy(line):
     log['front_end'] = _line[7].strip()
     log['backend'] = _line[8].strip()
 
+    log['Tq'] = float(_line[9].split('/')[0].strip())
+    log['Tw'] = float(_line[9].split('/')[1].strip())
+    log['Tc'] = float(_line[9].split('/')[2].strip())
+    log['Tr'] = float(_line[9].split('/')[3].strip())
     log['resp_time'] = float(_line[9].split('/')[-1].strip())
     log['status'] = _line[10].strip()
     log['bytes_read'] = float(_line[11].strip())
@@ -61,6 +76,15 @@ def haproxy(line):
 
     log['method'] = _line[-3].strip('"').strip()
     log['_api'] = _line[-2].strip()
+
+    log['retries'] = int(_line[15].split('/')[-1].strip())
+    log['actconn'] = int(_line[15].split('/')[0].strip())
+    log['feconn'] = int(_line[15].split('/')[1].strip())
+    log['beconn'] = int(_line[15].split('/')[-2].strip())
+    log['srv_conn'] = int(_line[15].split('/')[-3].strip())
+
+    log['srv_queue'] = int(_line[16].split('/')[0].strip())
+    log['backend_queue'] = int(_line[16].split('/')[1].strip())
 
     return dict(
         data=log,
