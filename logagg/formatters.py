@@ -16,6 +16,59 @@ def docker_file_log_driver(line):
                         )
     return dict(timestamp=log.get('timestamp'), data=log, type='log')
 
+def haproxy(line):
+    #TODO Handle all message formats
+    '''
+    >>> import pprint
+    >>> input_line1 = ''Apr 24 00:00:02 vishy3 haproxy[12298]: 192.99.63.3:48660 [24/Apr/2019:00:00:02.358] pre-staging~ pre-staging_doccoocurr_db_backend/pre-staging_active_db_doccoocurr_3 261/0/2/8/271 200 2406 - - ---- 4/4/0/1/0 0/0 {C0633F03:BE14_4246B1BA:01BB_5CBFA702_E58B3:300A|||HMAC vishy@nference.net:JlLTlbtxl3P6/TM16VtWO4V9Hu2uYMlxZ0UN3Can48A=|vishy@nference.net|2018} "GET /doccoocurr/api/v1/get_doc_ids?token1=imatinib HTTP/1.1"''
+    >>> output_line1 = haproxy(input_line1)
+    >>> pprint.pprint(output_line1)
+    {'data': {'api': '/doccoocurr/api/v1/get_doc_ids?token1=imatinib',
+	      'backend': 'pre-staging_doccoocurr_db_backend/pre-staging_active_db_doccoocurr_3',
+	      'bytes_read': 2406.0,
+	      'client_port': '48660',
+	      'client_server': '192.99.63.3',
+	      'front_end': 'pre-staging~',
+	      'haproxy_server': 'vishy3',
+	      'headers': ['C0633F03:BE14_4246B1BA:01BB_5CBFA702_E58B3:300A|||HMAC vishy@nference.net:JlLTlbtxl3P6/TM16VtWO4V9Hu2uYMlxZ0UN3Can48A=|vishy@nference.net|2018'],
+	      'method': 'GET',
+	      'resp_time': 271.0,
+	      'status': '200',
+	      'timestamp': '2019-04-24T00:00:02.358000'},
+     'event': 'haproxy_event',
+     'timestamp': '2019-04-24T00:00:02.358000',
+     'type': 'metric'}
+    '''
+
+    _line = line.strip().split()
+
+    log = {}
+    log['client_server'] = _line[5].split(':')[0].strip()
+    log['client_port'] = _line[5].split(':')[1].strip()
+
+    _timestamp = re.findall(r'\[(.*?)\]', _line[6])[0]
+    log['timestamp'] = datetime.datetime.strptime(_timestamp, '%d/%b/%Y:%H:%M:%S.%f').isoformat()
+
+    log['front_end'] = _line[7].strip()
+    log['backend'] = _line[8].strip()
+
+    log['resp_time'] = float(_line[9].split('/')[-1].strip())
+    log['status'] = _line[10].strip()
+    log['bytes_read'] = float(_line[11].strip())
+
+    log['headers'] = re.findall(r'{(.*)}', line)
+    log['haproxy_server'] = _line[3].strip()
+
+    log['method'] = _line[-3].strip('"').strip()
+    log['api'] = _line[-2].strip()
+
+    return dict(
+        data=log,
+        event='haproxy_event',
+        timestamp=log.get('timestamp'),
+        type='metric'
+    )
+
 def nginx_access(line):
     '''
     >>> import pprint
