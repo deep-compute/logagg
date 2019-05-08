@@ -27,14 +27,19 @@ def haproxy(line):
 	      'Tq': 261.0,
 	      'Tr': 8.0,
 	      'Tw': 0.0,
-	      '_api': '/doc/api/get?call=apple',
-	      '_headers': ['AAAAAA:AAAAA_AAAAA:AAAAA_AAAAA_AAAAA:300A||| user@mail.net:sdasdasdasdsdasAHDivsjd=|user@mail.net|2018'],
+	      '_headers': ['AAAAAA:AAAAA_AAAAA:AAAAA_AAAAA_AAAAA:300A',
+			   '',
+			   '',
+			   ' user@mail.net:sdasdasdasdsdasAHDivsjd=',
+			   'user@mail.net',
+			   '2018'],
+	      '_url_params': {'call': 'apple'},
 	      'actconn': 4,
 	      'backend': 'pre-staging_doc/pre-staging_active',
 	      'backend_queue': 0,
 	      'beconn': 1,
-	      'bytes_read': 2406.0,
-	      'client_port': '48660',
+	      'bytes_read': 2406,
+	      'client_port': 48660,
 	      'client_server': '1.1.1.1',
 	      'feconn': 4,
 	      'front_end': 'pre-staging~',
@@ -45,7 +50,8 @@ def haproxy(line):
 	      'srv_conn': 0,
 	      'srv_queue': 0,
 	      'status': '200',
-	      'timestamp': '2019-04-24T00:00:02.358000'},
+	      'timestamp': '2019-04-24T00:00:02.358000',
+	      'url_path': '/doc/api/get'},
      'event': 'haproxy_event',
      'timestamp': '2019-04-24T00:00:02.358000',
      'type': 'metric'}
@@ -55,7 +61,7 @@ def haproxy(line):
 
     log = {}
     log['client_server'] = _line[5].split(':')[0].strip()
-    log['client_port'] = _line[5].split(':')[1].strip()
+    log['client_port'] = int(_line[5].split(':')[1].strip())
 
     _timestamp = re.findall(r'\[(.*?)\]', _line[6])[0]
     log['timestamp'] = datetime.datetime.strptime(_timestamp, '%d/%b/%Y:%H:%M:%S.%f').isoformat()
@@ -69,13 +75,28 @@ def haproxy(line):
     log['Tr'] = float(_line[9].split('/')[3].strip())
     log['resp_time'] = float(_line[9].split('/')[-1].strip())
     log['status'] = _line[10].strip()
-    log['bytes_read'] = float(_line[11].strip())
+    log['bytes_read'] = int(_line[11].strip())
 
-    log['_headers'] = re.findall(r'{(.*)}', line)
+    _headers = re.findall(r'{(.*)}', line)
+    if _headers:
+        log['_headers'] = _headers[0].strip().split('|')
+    else:
+        log['_headers'] = []
+
     log['haproxy_server'] = _line[3].strip()
 
     log['method'] = _line[-3].strip('"').strip()
-    log['_api'] = _line[-2].strip()
+
+    _api = _line[-2].strip().split('?')
+    log['url_path'] = _api[0].strip()
+    _url_params = {}
+
+    if len(_api) > 1:
+        for params in _api[1].strip().split('&'):
+            _params = params.split('=')
+            _url_params[_params[0].strip()] = _params[1].strip()
+
+    log['_url_params'] = _url_params
 
     log['retries'] = int(_line[15].split('/')[-1].strip())
     log['actconn'] = int(_line[15].split('/')[0].strip())
