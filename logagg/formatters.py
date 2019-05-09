@@ -16,6 +16,7 @@ def docker_file_log_driver(line):
                         )
     return dict(timestamp=log.get('timestamp'), data=log, type='log')
 
+HAPROXY_HEADERS = re.compile(r'{(.*)} ')
 def haproxy(line):
     #TODO Handle all message formats
     '''
@@ -57,55 +58,59 @@ def haproxy(line):
      'type': 'metric'}
     '''
 
-    _line = line.strip().split()
-
-    log = {}
-    log['client_server'] = _line[5].split(':')[0].strip()
-    log['client_port'] = int(_line[5].split(':')[1].strip())
-
-    _timestamp = re.findall(r'\[(.*?)\]', _line[6])[0]
-    log['timestamp'] = datetime.datetime.strptime(_timestamp, '%d/%b/%Y:%H:%M:%S.%f').isoformat()
-
-    log['front_end'] = _line[7].strip()
-    log['backend'] = _line[8].strip()
-
-    log['Tq'] = float(_line[9].split('/')[0].strip())
-    log['Tw'] = float(_line[9].split('/')[1].strip())
-    log['Tc'] = float(_line[9].split('/')[2].strip())
-    log['Tr'] = float(_line[9].split('/')[3].strip())
-    log['resp_time'] = float(_line[9].split('/')[-1].strip())
-    log['status'] = _line[10].strip()
-    log['bytes_read'] = int(_line[11].strip())
-
-    _headers = re.findall(r'{(.*)}', line)
+    _headers = HAPROXY_HEADERS.findall(line)
     if _headers:
-        log['_headers'] = _headers[0].strip().split('|')
+        _headers = _headers[0].strip().split('|')
     else:
-        log['_headers'] = []
+        _headers = []
 
-    log['haproxy_server'] = _line[3].strip()
+    _line = HAPROXY_HEADERS.sub('', line).strip().split()
 
-    log['method'] = _line[-3].strip('"').strip()
+    _, _, _, haproxy_server, _, client_server_info, timestamp, front_end, \
+    backend, resp_timings, status, bytes_read, \
+    _, _, _, conn_stats, inqueue_stats, method, url, http_version = _line
 
-    _api = _line[-2].strip().split('?')
-    log['url_path'] = _api[0].strip()
+    keys = [
+                '_headers', 'haproxy_server', 'client_server',
+                'client_port', 'timestamp', 'front_end', 'backend',
+                'Tq', 'Tw', 'Tc', 'Tr', 'resp_time', 'status',
+                'bytes_read', 'retries', 'actconn', 'feconn',
+                'beconn', 'srv_conn', 'srv_queue', 'backend_queue',
+                'method', 'url_path', '_url_params', 'http_version'
+            ]
+
+    haproxy_server = haproxy_server.strip()
+
+    client_server, client_port = client_server_info.split(':')
+    client_server = client_server.strip()
+    client_port = int(client_port.strip())
+
+    _timestamp = re.findall(r'\[(.*?)\]', timestamp)[0]
+    timestamp = datetime.datetime.strptime(_timestamp, '%d/%b/%Y:%H:%M:%S.%f').isoformat()
+
+    front_end = front_end.strip()
+    backend = backend.strip()
+
+    Tq, Tw, Tc, Tr, resp_time = [float(rt.strip()) for rt in resp_timings.split('/')]
+
+    status = status.strip()
+    bytes_read = int(bytes_read.strip())
+
+    actconn, feconn, beconn, srv_conn, retries = [int(cs.strip()) for cs in conn_stats.split('/')]
+    srv_queue, backend_queue = [int(inqstat.strip()) for inqstat in inqueue_stats.split('/')]
+    method = method.strip('"').strip()
+
+    _url = url.strip().split('?')
+    url_path, url_params = [u.strip() for u in _url]
+
     _url_params = {}
+    for params in url_params.split('&'):
+        key, val = params.strip().split('=')
+        _url_params[key.strip()] = val.strip()
 
-    if len(_api) > 1:
-        for params in _api[1].strip().split('&'):
-            _params = params.split('=')
-            _url_params[_params[0].strip()] = _params[1].strip()
+    http_version = http_version.strip('"').strip()
 
-    log['_url_params'] = _url_params
-
-    log['retries'] = int(_line[15].split('/')[-1].strip())
-    log['actconn'] = int(_line[15].split('/')[0].strip())
-    log['feconn'] = int(_line[15].split('/')[1].strip())
-    log['beconn'] = int(_line[15].split('/')[-2].strip())
-    log['srv_conn'] = int(_line[15].split('/')[-3].strip())
-
-    log['srv_queue'] = int(_line[16].split('/')[0].strip())
-    log['backend_queue'] = int(_line[16].split('/')[1].strip())
+    log = dict(zip(keys, [eval(k) for k in keys]))
 
     return dict(
         data=log,
