@@ -16,75 +16,102 @@ def docker_file_log_driver(line):
                         )
     return dict(timestamp=log.get('timestamp'), data=log, type='log')
 
+HAPROXY_HEADERS = re.compile(r'{(.*)} ')
 def haproxy(line):
     #TODO Handle all message formats
     '''
     >>> import pprint
-    >>> input_line1 = 'Apr 24 00:00:02 node haproxy[12298]: 1.1.1.1:48660 [24/Apr/2019:00:00:02.358] pre-staging~ pre-staging_doc/pre-staging_active 261/0/2/8/271 200 2406 - - ---- 4/4/0/1/0 0/0 {AAAAAA:AAAAA_AAAAA:AAAAA_AAAAA_AAAAA:300A||| user@mail.net:sdasdasdasdsdasAHDivsjd=|user@mail.net|2018} "GET /doc/api/get?call=apple HTTP/1.1"'
+    >>> input_line1 = 'Apr 24 00:00:02 node haproxy[12298]: 1.1.1.1:48660 [24/Apr/2019:00:00:02.358] pre-staging~ pre-staging_doc/pre-staging_active 261/0/2/8/271 200 2406 - - ---- 4/4/0/1/0 0/0 {AAAAAA:AAAAA_AAAAA:AAAAA_AAAAA_AAAAA:300A|||HMAC user@mail.net:sdasdasdasdsdasAHDivsjd=|user@mail.net|2018} "GET /doc/api/get?call=apple HTTP/1.1"'
     >>> output_line1 = haproxy(input_line1)
     >>> pprint.pprint(output_line1)
     {'data': {'Tc': 2.0,
-	      'Tq': 261.0,
-	      'Tr': 8.0,
-	      'Tw': 0.0,
-	      '_api': '/doc/api/get?call=apple',
-	      '_headers': ['AAAAAA:AAAAA_AAAAA:AAAAA_AAAAA_AAAAA:300A||| user@mail.net:sdasdasdasdsdasAHDivsjd=|user@mail.net|2018'],
-	      'actconn': 4,
-	      'backend': 'pre-staging_doc/pre-staging_active',
-	      'backend_queue': 0,
-	      'beconn': 1,
-	      'bytes_read': 2406.0,
-	      'client_port': '48660',
-	      'client_server': '1.1.1.1',
-	      'feconn': 4,
-	      'front_end': 'pre-staging~',
-	      'haproxy_server': 'node',
-	      'method': 'GET',
-	      'resp_time': 271.0,
-	      'retries': 0,
-	      'srv_conn': 0,
-	      'srv_queue': 0,
-	      'status': '200',
-	      'timestamp': '2019-04-24T00:00:02.358000'},
+              'Tq': 261.0,
+              'Tr': 8.0,
+              'Tw': 0.0,
+              '_headers': ['AAAAAA:AAAAA_AAAAA:AAAAA_AAAAA_AAAAA:300A',
+                           '',
+                           '',
+                           'HMAC user@mail.net:sdasdasdasdsdasAHDivsjd=',
+                           'user@mail.net',
+                           '2018'],
+              '_url_params': {'call': 'apple'},
+              'actconn': 4,
+              'backend': 'pre-staging_doc/pre-staging_active',
+              'backend_queue': 0,
+              'beconn': 0,
+              'bytes_read': 2406,
+              'client_port': 48660,
+              'client_server': '1.1.1.1',
+              'feconn': 4,
+              'front_end': 'pre-staging~',
+              'haproxy_server': 'node',
+              'http_version': 'HTTP/1.1',
+              'method': 'GET',
+              'resp_time': 271.0,
+              'retries': 0,
+              'srv_conn': 1,
+              'srv_queue': 0,
+              'status': '200',
+              'timestamp': '2019-04-24T00:00:02.358000',
+              'url_path': '/doc/api/get'},
      'event': 'haproxy_event',
      'timestamp': '2019-04-24T00:00:02.358000',
      'type': 'metric'}
     '''
 
-    _line = line.strip().split()
+    _headers = HAPROXY_HEADERS.findall(line)
+    if _headers:
+        _headers = _headers[0].strip().split('|')
+    else:
+        _headers = []
 
-    log = {}
-    log['client_server'] = _line[5].split(':')[0].strip()
-    log['client_port'] = _line[5].split(':')[1].strip()
+    _line = HAPROXY_HEADERS.sub('', line).strip().split()
 
-    _timestamp = re.findall(r'\[(.*?)\]', _line[6])[0]
-    log['timestamp'] = datetime.datetime.strptime(_timestamp, '%d/%b/%Y:%H:%M:%S.%f').isoformat()
+    _, _, _, haproxy_server, _, client_server_info, timestamp, front_end, \
+    backend, resp_timings, status, bytes_read, \
+    _, _, _, conn_stats, inqueue_stats, method, url, http_version = _line
 
-    log['front_end'] = _line[7].strip()
-    log['backend'] = _line[8].strip()
+    keys = [
+                '_headers', 'haproxy_server', 'client_server',
+                'client_port', 'timestamp', 'front_end', 'backend',
+                'Tq', 'Tw', 'Tc', 'Tr', 'resp_time', 'status',
+                'bytes_read', 'retries', 'actconn', 'feconn',
+                'beconn', 'srv_conn', 'srv_queue', 'backend_queue',
+                'method', 'url_path', '_url_params', 'http_version'
+            ]
 
-    log['Tq'] = float(_line[9].split('/')[0].strip())
-    log['Tw'] = float(_line[9].split('/')[1].strip())
-    log['Tc'] = float(_line[9].split('/')[2].strip())
-    log['Tr'] = float(_line[9].split('/')[3].strip())
-    log['resp_time'] = float(_line[9].split('/')[-1].strip())
-    log['status'] = _line[10].strip()
-    log['bytes_read'] = float(_line[11].strip())
+    haproxy_server = haproxy_server.strip()
 
-    log['_headers'] = re.findall(r'{(.*)}', line)
-    log['haproxy_server'] = _line[3].strip()
+    client_server, client_port = client_server_info.split(':')
+    client_server = client_server.strip()
+    client_port = int(client_port.strip())
 
-    log['method'] = _line[-3].strip('"').strip()
-    log['_api'] = _line[-2].strip()
+    _timestamp = re.findall(r'\[(.*?)\]', timestamp)[0]
+    timestamp = datetime.datetime.strptime(_timestamp, '%d/%b/%Y:%H:%M:%S.%f').isoformat()
 
-    log['retries'] = int(_line[15].split('/')[-1].strip())
-    log['actconn'] = int(_line[15].split('/')[0].strip())
-    log['feconn'] = int(_line[15].split('/')[1].strip())
-    log['beconn'] = int(_line[15].split('/')[-2].strip())
-    log['srv_conn'] = int(_line[15].split('/')[-3].strip())
+    front_end = front_end.strip()
+    backend = backend.strip()
 
-    log['srv_queue'] = int(_line[16].split('/')[0].strip())
-    log['backend_queue'] = int(_line[16].split('/')[1].strip())
+    Tq, Tw, Tc, Tr, resp_time = [float(rt.strip()) for rt in resp_timings.split('/')]
+
+    status = status.strip()
+    bytes_read = int(bytes_read.strip())
+
+    actconn, feconn, beconn, srv_conn, retries = [int(cs.strip()) for cs in conn_stats.split('/')]
+    srv_queue, backend_queue = [int(inqstat.strip()) for inqstat in inqueue_stats.split('/')]
+    method = method.strip('"').strip()
+
+    _url = url.strip().split('?')
+    url_path, url_params = [u.strip() for u in _url]
+
+    _url_params = {}
+    for params in url_params.split('&'):
+        key, val = params.strip().split('=')
+        _url_params[key.strip()] = val.strip()
+
+    http_version = http_version.strip('"').strip()
+
+    log = dict(zip(keys, [eval(k) for k in keys]))
 
     return dict(
         data=log,
