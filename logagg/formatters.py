@@ -45,6 +45,7 @@ def haproxy(line):
 	      'feconn': 4,
 	      'front_end': 'pre-staging~',
 	      'haproxy_server': 'node',
+              'http_version': 'HTTP/1.1',
 	      'method': 'GET',
 	      'resp_time': 271.0,
 	      'retries': 0,
