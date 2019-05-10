@@ -65,11 +65,19 @@ def haproxy(line):
     else:
         _headers = []
 
+    http_version = re.findall(r'(HTTP.*)"', line)
+    if http_version:
+        http_version = http_version[0].strip('"').strip()
+    else:
+        http_version = ''
+
+    line = re.sub(r'(HTTP.*)', '', line).strip()
+
     _line = HAPROXY_HEADERS.sub('', line).strip().split()
 
     _, _, _, haproxy_server, _, client_server_info, timestamp, front_end, \
     backend, resp_timings, status, bytes_read, \
-    _, _, _, conn_stats, inqueue_stats, method, url, http_version = _line
+    _, _, _, conn_stats, inqueue_stats, method, url = _line
 
     keys = [
                 '_headers', 'haproxy_server', 'client_server',
@@ -102,11 +110,22 @@ def haproxy(line):
     method = method.strip('"').strip()
 
     _url = url.strip().split('?')
-    url_path, url_params = [u.strip() for u in _url]
+    url_params = ''
+    if len(_url) == 2:
+        url_path, url_params = [u.strip() for u in _url]
+    else:
+        url_path = _url[0]
 
     _url_params = {}
     for params in url_params.split('&'):
-        key, val = params.strip().split('=')
+        if not params:
+            continue
+
+        _p = params.strip().split('=')
+        if not len(_p) == 2:
+            continue
+
+        key, val = _p
         _url_params[key.strip()] = val.strip()
 
     http_version = http_version.strip('"').strip()
