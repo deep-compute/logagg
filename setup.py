@@ -9,9 +9,9 @@ setup(
     author="Deep Compute, LLC",
     author_email="contact@deepcompute.com",
     url="https://github.com/deep-compute/logagg",
-    license='MIT',
+    license="MIT",
     dependency_links=[
-        "https://github.com/deep-compute/pygtail/tarball/master/#egg=pygtail-0.6.1",
+        "https://github.com/deep-compute/pygtail/tarball/master/#egg=pygtail-0.6.1"
     ],
     install_requires=[
         "basescript==0.2.0",
@@ -21,8 +21,8 @@ setup(
         "deeputil==0.2.5",
         "ujson==1.35",
     ],
-    package_dir={'logagg': 'logagg'},
-    packages=find_packages('.'),
+    package_dir={"logagg": "logagg"},
+    packages=find_packages("."),
     include_package_data=True,
     classifiers=[
         "Environment :: Console",
@@ -33,10 +33,6 @@ setup(
         "Operating System :: OS Independent",
         "License :: OSI Approved :: MIT License",
     ],
-    test_suite='test.suite_maker',
-    entry_points={
-        "console_scripts": [
-            "logagg = logagg:main",
-        ]
-    }
+    test_suite="test.suite_maker",
+    entry_points={"console_scripts": ["logagg = logagg:main"]},
 )

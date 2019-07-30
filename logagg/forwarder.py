@@ -32,7 +32,7 @@ class LogForwarder(object):
         # Initialize a queue to carry messages between the
         # producer (nsq_reader) and the consumer (read_from_q)
         self.msgqueue = Queue.Queue(maxsize=self.QUEUE_MAX_SIZE)
-        self.log.info('created_Queue_object', size=(self.QUEUE_MAX_SIZE))
+        self.log.info("created_Queue_object", size=(self.QUEUE_MAX_SIZE))
 
         # Starts the thread which we get the messages from queue
         th = self.consumer_thread = Thread(target=self.read_from_q)
@@ -41,7 +41,7 @@ class LogForwarder(object):
 
         # Establish connection to nsq from where we get the logs
         # Since, it is a blocking call we are starting the reader here.
-        self.log.debug('starting_nsq_reader')
+        self.log.debug("starting_nsq_reader")
         self.handle_msg(self.message_source)
 
         th.join()
@@ -70,15 +70,15 @@ class LogForwarder(object):
             is_max_time_elapsed = time_since_last_push >= self.MAX_SECONDS_TO_PUSH
 
             should_push = len(msgs) > 0 and (
-                is_max_time_elapsed or is_msg_limit_reached)
+                is_max_time_elapsed or is_msg_limit_reached
+            )
 
             try:
                 if should_push:
-                    self.log.debug('writing_messages_to_databases')
+                    self.log.debug("writing_messages_to_databases")
                     self._write_messages(msgs)
                     self._ack_messages(msgs)
-                    self.log.debug('ack_to_nsq_is_done_for_msgs',
-                        num_msgs=len(msgs))
+                    self.log.debug("ack_to_nsq_is_done_for_msgs", num_msgs=len(msgs))
 
                     msgs = []
                     last_push_ts = time.time()
@@ -93,7 +93,7 @@ class LogForwarder(object):
             except (SystemExit, KeyboardInterrupt):
                 raise
             except BaseException:
-                self.log.exception('msg_ack_failed')
+                self.log.exception("msg_ack_failed")
 
     def _send_msgs_to_target(self, target, msgs):
         while True:
@@ -104,8 +104,7 @@ class LogForwarder(object):
                 raise
             except BaseException:
                 # FIXME: do we log the failed messages themselves somewhere?
-                self.log.exception(
-                    '_send_msgs_to_target_failed', target=target)
+                self.log.exception("_send_msgs_to_target_failed", target=target)
                 time.sleep(self.WAIT_TIME_TARGET_FAILURE)
                 # FIXME: also implement some sort of backoff sleep
 
