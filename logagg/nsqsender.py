@@ -5,11 +5,16 @@ import requests
 from deeputil import keeprunning
 from logagg import util
 
+
 class NSQSender(object):
 
-    NSQ_READY_CHECK_INTERVAL = 1            # Wait time to check nsq readiness (alive and not full)
-    HEARTBEAT_TOPIC = 'Heartbeat#ephemeral' # Topic name at which heartbeat is to be sent
-    MPUB_URL = 'http://%s/mpub?topic=%s'    # Url to post msgs to NSQ
+    NSQ_READY_CHECK_INTERVAL = (
+        1
+    )  # Wait time to check nsq readiness (alive and not full)
+    HEARTBEAT_TOPIC = (
+        "Heartbeat#ephemeral"
+    )  # Topic name at which heartbeat is to be sent
+    MPUB_URL = "http://%s/mpub?topic=%s"  # Url to post msgs to NSQ
 
     def __init__(self, http_loc, nsq_topic, nsq_max_depth, log=util.DUMMY):
         self.nsqd_http_address = http_loc
@@ -21,73 +26,83 @@ class NSQSender(object):
         self._ensure_topic(self.topic_name)
         self._ensure_topic(self.HEARTBEAT_TOPIC)
 
-    @keeprunning(NSQ_READY_CHECK_INTERVAL,
-                 exit_on_success=True,
-                 on_error=util.log_exception)
+    @keeprunning(
+        NSQ_READY_CHECK_INTERVAL, exit_on_success=True, on_error=util.log_exception
+    )
     def _ensure_topic(self, topic_name):
-        u = 'http://%s/topic/create?topic=%s' % (self.nsqd_http_address, topic_name)
+        u = "http://%s/topic/create?topic=%s" % (self.nsqd_http_address, topic_name)
         try:
             self.session.post(u, timeout=1)
         except requests.exceptions.RequestException as e:
-            self.log.exception('could_not_create_topic,retrying....', topic=topic_name)
+            self.log.exception("could_not_create_topic,retrying....", topic=topic_name)
             raise
-        self.log.info('created_topic ', topic=topic_name)
+        self.log.info("created_topic ", topic=topic_name)
 
-    @keeprunning(NSQ_READY_CHECK_INTERVAL,
-                 exit_on_success=True,
-                 on_error=util.log_exception)
+    @keeprunning(
+        NSQ_READY_CHECK_INTERVAL, exit_on_success=True, on_error=util.log_exception
+    )
     def _is_ready(self, topic_name):
-        '''
+        """
         Is NSQ running and have space to receive messages?
-        '''
-        url = 'http://%s/stats?format=json&topic=%s' % (self.nsqd_http_address, topic_name)
-        #Cheacking for ephmeral channels
-        if '#' in topic_name:
-            topic_name, tag =topic_name.split("#", 1)
+        """
+        url = "http://%s/stats?format=json&topic=%s" % (
+            self.nsqd_http_address,
+            topic_name,
+        )
+        # Cheacking for ephmeral channels
+        if "#" in topic_name:
+            topic_name, tag = topic_name.split("#", 1)
 
         try:
             data = self.session.get(url).json()
-            '''
+            """
             data = {u'start_time': 1516164866, u'version': u'1.0.0-compat', \
                     u'health': u'OK', u'topics': [{u'message_count': 19019, \
                     u'paused': False, u'topic_name': u'test_topic', u'channels': [], \
                     u'depth': 19019, u'backend_depth': 9019, u'e2e_processing_latency': {u'count': 0, \
                     u'percentiles': None}}]}
-            '''
-            topics = data.get('topics', [])
-            topics = [t for t in topics if t['topic_name'] == topic_name]
+            """
+            topics = data.get("topics", [])
+            topics = [t for t in topics if t["topic_name"] == topic_name]
 
             if not topics:
-                raise Exception('topic_missing_at_nsq')
+                raise Exception("topic_missing_at_nsq")
 
             topic = topics[0]
-            depth = topic['depth']
-            depth += sum(c.get('depth', 0) for c in topic['channels'])
-            self.log.debug('nsq_depth_check', topic=topic_name,
-                            depth=depth, max_depth=self.nsq_max_depth)
+            depth = topic["depth"]
+            depth += sum(c.get("depth", 0) for c in topic["channels"])
+            self.log.debug(
+                "nsq_depth_check",
+                topic=topic_name,
+                depth=depth,
+                max_depth=self.nsq_max_depth,
+            )
 
             if depth < self.nsq_max_depth:
                 return
             else:
-                raise Exception('nsq_is_full_waiting_to_clear')
+                raise Exception("nsq_is_full_waiting_to_clear")
         except:
             raise
 
-    @keeprunning(NSQ_READY_CHECK_INTERVAL,
-                 exit_on_success=True,
-                 on_error=util.log_exception)
+    @keeprunning(
+        NSQ_READY_CHECK_INTERVAL, exit_on_success=True, on_error=util.log_exception
+    )
     def _send_messages(self, msgs, topic_name):
         url = self.MPUB_URL % (self.nsqd_http_address, topic_name)
         try:
-            self.session.post(url, data=msgs, timeout=5) # TODO What if session expires?
-        except (SystemExit, KeyboardInterrupt): raise
+            self.session.post(
+                url, data=msgs, timeout=5
+            )  # TODO What if session expires?
+        except (SystemExit, KeyboardInterrupt):
+            raise
         except requests.exceptions.RequestException as e:
             raise
-        self.log.debug('nsq push done ', nmsgs=len(msgs), nbytes=len(msgs))
+        self.log.debug("nsq push done ", nmsgs=len(msgs), nbytes=len(msgs))
 
     def handle_logs(self, msgs):
         self._is_ready(topic_name=self.topic_name)
-        msgs = '\n'.join(m['log'] for m in msgs)
+        msgs = "\n".join(m["log"] for m in msgs)
         self._send_messages(msgs, topic_name=self.topic_name)
 
     def handle_heartbeat(self, heartbeat):

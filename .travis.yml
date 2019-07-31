@@ -1,36 +1,29 @@
-language: python
-python:
-- '2.7'
-
-sudo: required
-
+deploy:
+- provider: releases
+  skip_cleanup: true
+  api-key:
+    secure: Rxl45qbTHWIbOhst3PS60ETfW5wDByxp0xv4ZbtgRGe4SPvHtOLHRNGiajsQX37pgUFF9ALcCseY2cTk46jNEA1jOzFx4DDSKyH+Wu4H5F4M8JDBBlIsvsgezumLsYMqOL18caZA8J84N9UyuzgdPBDb0B0mMclRa9xRaxWncrUZgXwW9r3N2zU1LvGtd0Su4zLXXP6HC6mKHdOOaNSDONqaesx1njYTGr5fbWy7IXrjSg75wWCtHW1dKDPXmyyWZomwpmhURYfYXn/o9lRaXSDpLWx4xTsbJQdG9EiSPm5fLjfv9tZTxIF7jB0tTrOB63gGAgrLu0zC5Z5MJ1Y0+sbotI8eySI4w0GTffhi4WQjTTyO02vgPuSCm9JV5aW+YeNJtSncEgaVgsuUmZUiWdqMsvPG+bqOjh/i0eIkHr/v7cyf3HndFieZH9H3XdlEDtyr4SRExQSjG+be6mcGOJMWMrXervcW6kGP3pcX7EWgrFxnkz9lSgx/0meNMP4JDo8pZWg50b0xpni3zUcweTgCIeYUBd5aIKUvPaCqSHC1BAyZI5z3Cvdlq0tjCS726drQcV4OJNjrnmb301/K6MBbXhAsyhbkB1NpUZ0k0ZwmGxQ7iE4N1pod2BQbTPxjNUL1KNQJXFvjr9Clrw9Arqo6X9S9t//GP2DDl5Ke5KQ=
+  name: logagg-0.3.3
+  tag_name: 0.3.3
+  true:
+    branch: master
+    repo: deep-compute/logagg
+- provider: pypi
+  distributions: sdist bdist_wheel
+  skip_cleanup: true
+  user: deepcompute
+  password:
+    secure: IXPfJj9LHA6FvsS5+vmdC0pvqtl2S64GUHVHMjuFZg9oKHyBBVHiAoo8L7AsvA90a2mRNmm/xiJrynwvNDMkdULH+4pDMRY2LjGGccBAGVCrmkjhvgDpGMipiF5Hzs5JgCI9sIKKpVUiC3AEA7ilucHMIhEOOf6Biz036HPKIz0e2/jfuBoBtWgNzMEc2Ooxv1lUYOheqHUoJT3dKy0Z2HdnGeVBCYT5Bswj9PrymdEg/9wLsuiltKA4ZbXXYW84PnC+Iys4wWaVAqFcgP7lXGzmidpS6TgucHA4YHRwZTNdlALoF92RCjm5wK6WtbsEXIUVGiVosiUxlpVtf+3D5oazgvXnjupq5cirvy6UOOzB5O8DF1Un3aJw3xN77/CznwdFzYP7YixqCQCgfJtX0ztvV7Kzc5d4/gny8DoLpgm6UAUJDiwbBa1vxFslgYAvgAi1KY6176nxxdOK/DZ6wDJFobKQ9Hkq+lPWG2Yy5H5cxyEd0Qio9r0C5pGTJbfsFJbTTrT9UXcjR1gP69zFXriCfyspdg1l1aufxJrzSz8RGSdoRqZhAQ4eYGHAg7RmT8TsCesInJNAwe4vhsDX5iLkvhw31Idz2O0xjEaLTHsdFdVH9T+38zAjBRLGA9zmJSiqdlRi10640ZZ2+jApPyqQm/QLOstTQHYxb18rilQ=
+  true:
+    branch: master
+    tags: true
 install:
 - easy_install https://github.com/deep-compute/pygtail/tarball/master/#egg=pygtail-0.6.1
 - pip install .
-
-# Run the doctest
+language: python
+python:
+- '2.7'
 script:
+- docker run -v $(pwd):/app deepcompute/black:python-black-latest --check .
 - python setup.py test
-
-deploy:
-
-  - provider: releases
-    skip_cleanup: true
-    api-key:
-      secure: Rxl45qbTHWIbOhst3PS60ETfW5wDByxp0xv4ZbtgRGe4SPvHtOLHRNGiajsQX37pgUFF9ALcCseY2cTk46jNEA1jOzFx4DDSKyH+Wu4H5F4M8JDBBlIsvsgezumLsYMqOL18caZA8J84N9UyuzgdPBDb0B0mMclRa9xRaxWncrUZgXwW9r3N2zU1LvGtd0Su4zLXXP6HC6mKHdOOaNSDONqaesx1njYTGr5fbWy7IXrjSg75wWCtHW1dKDPXmyyWZomwpmhURYfYXn/o9lRaXSDpLWx4xTsbJQdG9EiSPm5fLjfv9tZTxIF7jB0tTrOB63gGAgrLu0zC5Z5MJ1Y0+sbotI8eySI4w0GTffhi4WQjTTyO02vgPuSCm9JV5aW+YeNJtSncEgaVgsuUmZUiWdqMsvPG+bqOjh/i0eIkHr/v7cyf3HndFieZH9H3XdlEDtyr4SRExQSjG+be6mcGOJMWMrXervcW6kGP3pcX7EWgrFxnkz9lSgx/0meNMP4JDo8pZWg50b0xpni3zUcweTgCIeYUBd5aIKUvPaCqSHC1BAyZI5z3Cvdlq0tjCS726drQcV4OJNjrnmb301/K6MBbXhAsyhbkB1NpUZ0k0ZwmGxQ7iE4N1pod2BQbTPxjNUL1KNQJXFvjr9Clrw9Arqo6X9S9t//GP2DDl5Ke5KQ=
-    name: logagg-0.3.3
-    tag_name: 0.3.3
-    on:
-        branch: master
-        repo: deep-compute/logagg
-
-  - provider: pypi
-    distributions: "sdist bdist_wheel"
-    skip_cleanup: true
-    user: "deepcompute"
-    password:
-      secure: IXPfJj9LHA6FvsS5+vmdC0pvqtl2S64GUHVHMjuFZg9oKHyBBVHiAoo8L7AsvA90a2mRNmm/xiJrynwvNDMkdULH+4pDMRY2LjGGccBAGVCrmkjhvgDpGMipiF5Hzs5JgCI9sIKKpVUiC3AEA7ilucHMIhEOOf6Biz036HPKIz0e2/jfuBoBtWgNzMEc2Ooxv1lUYOheqHUoJT3dKy0Z2HdnGeVBCYT5Bswj9PrymdEg/9wLsuiltKA4ZbXXYW84PnC+Iys4wWaVAqFcgP7lXGzmidpS6TgucHA4YHRwZTNdlALoF92RCjm5wK6WtbsEXIUVGiVosiUxlpVtf+3D5oazgvXnjupq5cirvy6UOOzB5O8DF1Un3aJw3xN77/CznwdFzYP7YixqCQCgfJtX0ztvV7Kzc5d4/gny8DoLpgm6UAUJDiwbBa1vxFslgYAvgAi1KY6176nxxdOK/DZ6wDJFobKQ9Hkq+lPWG2Yy5H5cxyEd0Qio9r0C5pGTJbfsFJbTTrT9UXcjR1gP69zFXriCfyspdg1l1aufxJrzSz8RGSdoRqZhAQ4eYGHAg7RmT8TsCesInJNAwe4vhsDX5iLkvhw31Idz2O0xjEaLTHsdFdVH9T+38zAjBRLGA9zmJSiqdlRi10640ZZ2+jApPyqQm/QLOstTQHYxb18rilQ=
-    on:
-      branch: master
-      # only when there is a release it will update pypi
-      tags: true
+sudo: required

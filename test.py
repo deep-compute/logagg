@@ -8,8 +8,9 @@ from logagg import util
 from logagg import collector
 from logagg import forwarders
 
+
 def suite_maker():
-    suite= unittest.TestSuite()
+    suite = unittest.TestSuite()
     suite.addTests(doctest.DocTestSuite(formatters))
 
     suite.addTests(doctest.DocTestSuite(collector))
@@ -18,4 +19,3 @@ def suite_maker():
 
     suite.addTests(doctest.DocTestSuite(util))
     return suite
-

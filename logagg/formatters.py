@@ -2,24 +2,32 @@ import re
 import ujson as json
 import datetime
 
-class RawLog(dict): pass
 
-#FIXME: cannot do both returns .. should it?
+class RawLog(dict):
+    pass
+
+
+# FIXME: cannot do both returns .. should it?
 def docker_file_log_driver(line):
-    log = json.loads(json.loads(line)['msg'])
-    if 'formatter' in log.get('extra'):
-        return RawLog(dict(formatter=log.get('extra').get('formatter'),
-                            raw=log.get('message'),
-                            host=log.get('host'),
-                            timestamp=log.get('timestamp'),
-                            )
-                        )
-    return dict(timestamp=log.get('timestamp'), data=log, type='log')
+    log = json.loads(json.loads(line)["msg"])
+    if "formatter" in log.get("extra"):
+        return RawLog(
+            dict(
+                formatter=log.get("extra").get("formatter"),
+                raw=log.get("message"),
+                host=log.get("host"),
+                timestamp=log.get("timestamp"),
+            )
+        )
+    return dict(timestamp=log.get("timestamp"), data=log, type="log")
 
-HAPROXY_HEADERS = re.compile(r'{(.*)} ')
+
+HAPROXY_HEADERS = re.compile(r"{(.*)} ")
+
+
 def haproxy(line):
-    #TODO Handle all message formats
-    '''
+    # TODO Handle all message formats
+    """
     >>> import pprint
     >>> input_line1 = 'Apr 24 00:00:02 node haproxy[12298]: 1.1.1.1:48660 [24/Apr/2019:00:00:02.358] pre-staging~ pre-staging_doc/pre-staging_active 261/0/2/8/271 200 2406 - - ---- 4/4/0/1/0 0/0 {AAAAAA:AAAAA_AAAAA:AAAAA_AAAAA_AAAAA:300A|||HMAC user@mail.net:sdasdasdasdsdasAHDivsjd=|user@mail.net|2018} "GET /doc/api/get?call=apple HTTP/1.1"'
     >>> output_line1 = haproxy(input_line1)
@@ -57,11 +65,11 @@ def haproxy(line):
      'event': 'haproxy_event',
      'timestamp': '2019-04-24T00:00:02.358000',
      'type': 'metric'}
-    '''
+    """
 
     _headers = HAPROXY_HEADERS.findall(line)
     if _headers:
-        _headers = _headers[0].strip().split('|')
+        _headers = _headers[0].strip().split("|")
     else:
         _headers = []
 
@@ -69,59 +77,84 @@ def haproxy(line):
     if http_version:
         http_version = http_version[0].strip('"').strip()
     else:
-        http_version = ''
+        http_version = ""
 
-    line = re.sub(r'(HTTP.*)', '', line).strip()
+    line = re.sub(r"(HTTP.*)", "", line).strip()
 
-    _line = HAPROXY_HEADERS.sub('', line).strip().split()
+    _line = HAPROXY_HEADERS.sub("", line).strip().split()
 
-    _, _, _, haproxy_server, _, client_server_info, timestamp, front_end, \
-    backend, resp_timings, status, bytes_read, \
-    _, _, _, conn_stats, inqueue_stats, method, url = _line
+    _, _, _, haproxy_server, _, client_server_info, timestamp, front_end, backend, resp_timings, status, bytes_read, _, _, _, conn_stats, inqueue_stats, method, url = (
+        _line
+    )
 
     keys = [
-                '_headers', 'haproxy_server', 'client_server',
-                'client_port', 'timestamp', 'front_end', 'backend',
-                'Tq', 'Tw', 'Tc', 'Tr', 'resp_time', 'status',
-                'bytes_read', 'retries', 'actconn', 'feconn',
-                'beconn', 'srv_conn', 'srv_queue', 'backend_queue',
-                'method', 'url_path', '_url_params', 'http_version'
-            ]
+        "_headers",
+        "haproxy_server",
+        "client_server",
+        "client_port",
+        "timestamp",
+        "front_end",
+        "backend",
+        "Tq",
+        "Tw",
+        "Tc",
+        "Tr",
+        "resp_time",
+        "status",
+        "bytes_read",
+        "retries",
+        "actconn",
+        "feconn",
+        "beconn",
+        "srv_conn",
+        "srv_queue",
+        "backend_queue",
+        "method",
+        "url_path",
+        "_url_params",
+        "http_version",
+    ]
 
     haproxy_server = haproxy_server.strip()
 
-    client_server, client_port = client_server_info.split(':')
+    client_server, client_port = client_server_info.split(":")
     client_server = client_server.strip()
     client_port = int(client_port.strip())
 
-    _timestamp = re.findall(r'\[(.*?)\]', timestamp)[0]
-    timestamp = datetime.datetime.strptime(_timestamp, '%d/%b/%Y:%H:%M:%S.%f').isoformat()
+    _timestamp = re.findall(r"\[(.*?)\]", timestamp)[0]
+    timestamp = datetime.datetime.strptime(
+        _timestamp, "%d/%b/%Y:%H:%M:%S.%f"
+    ).isoformat()
 
     front_end = front_end.strip()
     backend = backend.strip()
 
-    Tq, Tw, Tc, Tr, resp_time = [float(rt.strip()) for rt in resp_timings.split('/')]
+    Tq, Tw, Tc, Tr, resp_time = [float(rt.strip()) for rt in resp_timings.split("/")]
 
     status = status.strip()
     bytes_read = int(bytes_read.strip())
 
-    actconn, feconn, beconn, srv_conn, retries = [int(cs.strip()) for cs in conn_stats.split('/')]
-    srv_queue, backend_queue = [int(inqstat.strip()) for inqstat in inqueue_stats.split('/')]
+    actconn, feconn, beconn, srv_conn, retries = [
+        int(cs.strip()) for cs in conn_stats.split("/")
+    ]
+    srv_queue, backend_queue = [
+        int(inqstat.strip()) for inqstat in inqueue_stats.split("/")
+    ]
     method = method.strip('"').strip()
 
-    _url = url.strip().split('?')
-    url_params = ''
+    _url = url.strip().split("?")
+    url_params = ""
     if len(_url) == 2:
         url_path, url_params = [u.strip() for u in _url]
     else:
         url_path = _url[0]
 
     _url_params = {}
-    for params in url_params.split('&'):
+    for params in url_params.split("&"):
         if not params:
             continue
 
-        _p = params.strip().split('=')
+        _p = params.strip().split("=")
         if not len(_p) == 2:
             continue
 
@@ -133,14 +166,12 @@ def haproxy(line):
     log = dict(zip(keys, [eval(k) for k in keys]))
 
     return dict(
-        data=log,
-        event='haproxy_event',
-        timestamp=log.get('timestamp'),
-        type='metric'
+        data=log, event="haproxy_event", timestamp=log.get("timestamp"), type="metric"
     )
 
+
 def nginx_access(line):
-    '''
+    """
     >>> import pprint
     >>> input_line1 = '{ \
                     "remote_addr": "127.0.0.1","remote_user": "-","timestamp": "1515144699.201", \
@@ -187,26 +218,29 @@ def nginx_access(line):
      'event': 'nginx_event',
      'timestamp': '2018-01-05T09:14:46.415000',
      'type': 'metric'}
-    '''
-#TODO Handle nginx error logs
+    """
+    # TODO Handle nginx error logs
     log = json.loads(line)
-    timestamp_iso = datetime.datetime.utcfromtimestamp(float(log['timestamp'])).isoformat()
-    log.update({'timestamp':timestamp_iso})
-    if '-' in log.get('upstream_response_time'):
-        log['upstream_response_time'] = 0.0
-    log['body_bytes_sent'] = float(log['body_bytes_sent'])
-    log['request_time'] = float(log['request_time'])
-    log['upstream_response_time'] = float(log['upstream_response_time'])
+    timestamp_iso = datetime.datetime.utcfromtimestamp(
+        float(log["timestamp"])
+    ).isoformat()
+    log.update({"timestamp": timestamp_iso})
+    if "-" in log.get("upstream_response_time"):
+        log["upstream_response_time"] = 0.0
+    log["body_bytes_sent"] = float(log["body_bytes_sent"])
+    log["request_time"] = float(log["request_time"])
+    log["upstream_response_time"] = float(log["upstream_response_time"])
 
     return dict(
-        timestamp=log.get('timestamp',' '),
+        timestamp=log.get("timestamp", " "),
         data=log,
-        type='metric',
-        event='nginx_event',
+        type="metric",
+        event="nginx_event",
     )
 
+
 def mongodb(line):
-    '''
+    """
     >>> import pprint
     >>> input_line1 = '2017-08-17T07:56:33.489+0200 I REPL     [signalProcessingThread] shutting down replication subsystems'
     >>> output_line1 = mongodb(input_line1)
@@ -229,21 +263,17 @@ def mongodb(line):
               'timestamp': '2017-08-17T07:56:33.515+0200'},
      'timestamp': '2017-08-17T07:56:33.515+0200',
      'type': 'log'}
-    '''
+    """
 
-    keys = ['timestamp', 'severity', 'component', 'context', 'message']
-    values = re.split(r'\s+', line, maxsplit=4)
-    mongodb_log = dict(zip(keys,values))
+    keys = ["timestamp", "severity", "component", "context", "message"]
+    values = re.split(r"\s+", line, maxsplit=4)
+    mongodb_log = dict(zip(keys, values))
 
-    return dict(
-        timestamp=values[0],
-        data=mongodb_log,
-        type='log',
-    )
+    return dict(timestamp=values[0], data=mongodb_log, type="log")
 
 
 def django(line):
-    '''
+    """
     >>> import pprint
     >>> input_line1 = '[23/Aug/2017 11:35:25] INFO [app.middleware_log_req:50]View func called:{"exception": null,"processing_time": 0.00011801719665527344, "url": "<url>",host": "localhost", "user": "testing", "post_contents": "", "method": "POST" }'
     >>> output_line1 = django(input_line1)
@@ -283,41 +313,39 @@ def django(line):
       File "/usr/local/lib/python2.7/dist-packages/mongo_cache/mongocache.py", line 70, in __getitem__
     result = self.collection.find_one({"_id": key})
     OperationFailure: not authorized on collection_cache to execute command { find: "function", filter: { _id: "zydelig-cosine-20" }, limit: 1, singleBatch: true }
-    '''
-#TODO we need to handle case2 logs
+    """
+    # TODO we need to handle case2 logs
     data = {}
-    log = re.findall(r'^(\[\d+/\w+/\d+ \d+:\d+:\d+\].*)', line)
+    log = re.findall(r"^(\[\d+/\w+/\d+ \d+:\d+:\d+\].*)", line)
     if len(log) == 1:
-        data['timestamp'] = datetime.datetime.strptime(re.findall(r'(\d+/\w+/\d+ \d+:\d+:\d+)',\
-                log[0])[0],"%d/%b/%Y %H:%M:%S").isoformat()
-        data['loglevel'] = re.findall('[A-Z]+', log[0])[1]
-        data['logname'] = re.findall('\[\D+.\w+:\d+\]', log[0])[0]
-        message = re.findall('\{.+\}', log[0])
+        data["timestamp"] = datetime.datetime.strptime(
+            re.findall(r"(\d+/\w+/\d+ \d+:\d+:\d+)", log[0])[0], "%d/%b/%Y %H:%M:%S"
+        ).isoformat()
+        data["loglevel"] = re.findall("[A-Z]+", log[0])[1]
+        data["logname"] = re.findall("\[\D+.\w+:\d+\]", log[0])[0]
+        message = re.findall("\{.+\}", log[0])
         try:
             if len(message) > 0:
                 message = json.loads(message[0])
             else:
-                message = re.split(']', log[0])
-                message = ''.join(message[2:])
+                message = re.split("]", log[0])
+                message = "".join(message[2:])
         except ValueError:
-            message = re.split(']', log[0])
-            message = ''.join(message[2:])
+            message = re.split("]", log[0])
+            message = "".join(message[2:])
 
-        data['message'] = message
+        data["message"] = message
 
-        return dict(
-                timestamp=data['timestamp'],
-                level=data['loglevel'],
-                data=data,
-            )
+        return dict(timestamp=data["timestamp"], level=data["loglevel"], data=data)
     else:
         return dict(
             timestamp=datetime.datetime.isoformat(datetime.datetime.utcnow()),
-            data={raw:line}
+            data={raw: line},
         )
 
+
 def basescript(line):
-    '''
+    """
     >>> import pprint
     >>> input_line = '{"level": "warning", "timestamp": "2018-02-07T06:37:00.297610Z", "event": "exited via keyboard interrupt", "type": "log", "id": "20180207T063700_4d03fe800bd111e89ecb96000007bc65", "_": {"ln": 58, "file": "/usr/local/lib/python2.7/dist-packages/basescript/basescript.py", "name": "basescript.basescript", "fn": "start"}}'
     >>> output_line1 = basescript(input_line)
@@ -336,21 +364,22 @@ def basescript(line):
      'level': u'warning',
      'timestamp': u'2018-02-07T06:37:00.297610Z',
      'type': u'log'}
-    '''
+    """
 
     log = json.loads(line)
 
     return dict(
-        timestamp=log['timestamp'],
+        timestamp=log["timestamp"],
         data=log,
-        id=log['id'],
-        type=log['type'],
-        level=log['level'],
-        event=log['event']
+        id=log["id"],
+        type=log["type"],
+        level=log["level"],
+        event=log["event"],
     )
 
+
 def elasticsearch(line):
-    '''
+    """
     >>> import pprint
     >>> input_line = '[2017-08-30T06:27:19,158] [WARN ][o.e.m.j.JvmGcMonitorService] [Glsuj_2] [gc][296816] overhead, spent [1.2s] collecting in the last [1.3s]'
     >>> output_line = elasticsearch(input_line)
@@ -372,53 +401,62 @@ def elasticsearch(line):
     [2017-09-13T23:15:00,415][WARN ][o.e.i.e.Engine           ] [Glsuj_2] [filebeat-2017.09.09][3] failed engine [index]
     java.nio.file.FileSystemException: /home/user/elasticsearch/data/nodes/0/indices/jsVSO6f3Rl-wwBpQyNRCbQ/3/index/_0.fdx: Too many open files
             at sun.nio.fs.UnixException.translateToIOException(UnixException.java:91) ~[?:?]
-    '''
+    """
 
     # TODO we need to handle case2 logs
     elasticsearch_log = line
-    actuallog = re.findall(r'(\[\d+\-+\d+\d+\-+\d+\w+\d+:\d+:\d+,+\d\d\d+\].*)', elasticsearch_log)
+    actuallog = re.findall(
+        r"(\[\d+\-+\d+\d+\-+\d+\w+\d+:\d+:\d+,+\d\d\d+\].*)", elasticsearch_log
+    )
     if len(actuallog) == 1:
-        keys = ['timestamp','level','message','plugin','garbage_collector','gc_count','query_time_ms', 'resp_time_ms']
-        values = re.findall(r'\[(.*?)\]', actuallog[0])
+        keys = [
+            "timestamp",
+            "level",
+            "message",
+            "plugin",
+            "garbage_collector",
+            "gc_count",
+            "query_time_ms",
+            "resp_time_ms",
+        ]
+        values = re.findall(r"\[(.*?)\]", actuallog[0])
         for index, i in enumerate(values):
             if not isinstance(i, str):
                 continue
-            if len(re.findall(r'.*ms$', i)) > 0 and 'ms' in re.findall(r'.*ms$', i)[0]:
-                num = re.split('ms', i)[0]
-                values[index]  = float(num)
+            if len(re.findall(r".*ms$", i)) > 0 and "ms" in re.findall(r".*ms$", i)[0]:
+                num = re.split("ms", i)[0]
+                values[index] = float(num)
                 continue
-            if len(re.findall(r'.*s$', i)) > 0 and 's' in re.findall(r'.*s$', i)[0]:
-                num = re.split('s', i)[0]
+            if len(re.findall(r".*s$", i)) > 0 and "s" in re.findall(r".*s$", i)[0]:
+                num = re.split("s", i)[0]
                 values[index] = float(num) * 1000
                 continue
 
-        data = dict(zip(keys,values))
-        if 'level' in data and data['level'][-1] == ' ':
-            data['level'] = data['level'][:-1]
-        if 'gc_count' in data:
-            data['gc_count'] = float(data['gc_count'])
-        event = data['message']
-        level=values[1]
-        timestamp=values[0]
+        data = dict(zip(keys, values))
+        if "level" in data and data["level"][-1] == " ":
+            data["level"] = data["level"][:-1]
+        if "gc_count" in data:
+            data["gc_count"] = float(data["gc_count"])
+        event = data["message"]
+        level = values[1]
+        timestamp = values[0]
 
         return dict(
-                timestamp=timestamp,
-                level=level,
-                type='metric',
-                data=data,
-                event=event
+            timestamp=timestamp, level=level, type="metric", data=data, event=event
         )
 
     else:
         return dict(
-                timestamp=datetime.datetime.isoformat(datetime.datetime.now()),
-                data={'raw': line}
+            timestamp=datetime.datetime.isoformat(datetime.datetime.now()),
+            data={"raw": line},
         )
 
-LOG_BEGIN_PATTERN = [re.compile(r'^\s+\['), re.compile(r'^\[')]
+
+LOG_BEGIN_PATTERN = [re.compile(r"^\s+\["), re.compile(r"^\[")]
+
 
 def elasticsearch_ispartial_log(line):
-    '''
+    """
     >>> line1 = '  [2018-04-03T00:22:38,048][DEBUG][o.e.c.u.c.QueueResizingEsThreadPoolExecutor] [search17/search]: there were [2000] tasks in [809ms], avg task time [28.4micros], EWMA task execution [790nanos], [35165.36 tasks/s], optimal queue is [35165], current capacity [1000]'
     >>> line2 = '  org.elasticsearch.ResourceAlreadyExistsException: index [media_corpus_refresh/6_3sRAMsRr2r63J6gbOjQw] already exists'
     >>> line3 = '   at org.elasticsearch.cluster.metadata.MetaDataCreateIndexService.validateIndexName(MetaDataCreateIndexService.java:151) ~[elasticsearch-6.2.0.jar:6.2.0]'
@@ -428,12 +466,13 @@ def elasticsearch_ispartial_log(line):
     True
     >>> elasticsearch_ispartial_log(line3)
     True
-    '''
+    """
     match_result = []
 
     for p in LOG_BEGIN_PATTERN:
         if re.match(p, line) != None:
             return False
     return True
+
 
 elasticsearch.ispartial = elasticsearch_ispartial_log
