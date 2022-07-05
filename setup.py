@@ -19,7 +19,7 @@ setup(
         "nsq-py==0.1.10",
         "influxdb==4.1.1",
         "deeputil==0.2.5",
-        "ujson==1.35",
+        "ujson==5.4.0",
     ],
     package_dir={"logagg": "logagg"},
     packages=find_packages("."),
